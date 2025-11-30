@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:kochrezepte_app/pages/home/home.dart';
+import 'package:kochrezepte_app/supabase/auth_service.dart';
+import 'package:kochrezepte_app/supabase/supabase_client.dart';
 
-void main() {
+Future<void> main()  async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SupabaseClientManager.initialize();
+  // Test 
+  final authService = AuthService();
+  await authService.printUsers();
+
   runApp(const MyApp());
 }
 
