@@ -1,15 +1,16 @@
+import 'package:flutter/widgets.dart';
 import 'package:kochrezepte_app/supabase/supabase_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // Nécessaire pour PostgrestException
 
 class AuthService {
-  final SupaClient = SupabaseClientManager.client;
+  final supaClient = SupabaseClientManager.client;
 
   // Méthode pour récupérer et afficher les users
   Future<void> printUsers() async {
     try {
       // 1. On attend directement le résultat du select()
       // Plus besoin de .execute()
-      final List<dynamic> data = await SupaClient
+      final List<dynamic> data = await supaClient
           .from('users')
           .select();
 
@@ -18,15 +19,15 @@ class AuthService {
 
       // Afficher chaque utilisateur dans la console
       for (var user in users) {
-        print('ID: ${user['id']}, Username: ${user['username']}, Email: ${user['email']}');
+        debugPrint('ID: ${user['id']}, Username: ${user['username']}, Email: ${user['email']}');
       }
 
     } on PostgrestException catch (error) {
       // 3. Gestion des erreurs via try/catch
-      print('Erreur Supabase: ${error.message}');
+      debugPrint('Erreur Supabase: ${error.message}');
     } catch (e) {
       // Autres erreurs (ex: pas d'internet)
-      print('Erreur inattendue: $e');
+      debugPrint('Erreur inattendue: $e');
     }
   }
 }

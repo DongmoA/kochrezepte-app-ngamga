@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:kochrezepte_app/pages/home/home.dart';
+import 'package:kochrezepte_app/pages/home.dart';
 import 'package:kochrezepte_app/supabase/auth_service.dart';
 import 'package:kochrezepte_app/supabase/supabase_client.dart';
 
