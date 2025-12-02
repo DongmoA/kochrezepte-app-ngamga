@@ -29,4 +29,42 @@ class AuthService {
       print('Erreur inattendue: $e');
     }
   }
+   Future<AuthResponse> signUp({
+    required String email,
+    required String password,
+   }) async {
+    try {
+    final response = await SupaClient.auth.signUp(
+      email : email,
+      password : password
+    );
+    return response;
+    } on AuthException catch(e){
+      throw Exception('Registrierung fehlgeschlagen: ${e.message}');
+    }
+   }
+   // ANMELDUNG (signIn)
+Future<AuthResponse> signIn({
+  required String email,
+  required String password,
+}) async {
+  try {
+    final response = await SupaClient.auth.signInWithPassword(
+      email: email,
+      password: password,
+    );
+    return response;
+  } on AuthException catch (e) {
+    throw Exception('Anmeldung fehlgeschlagen: ${e.message}');
+  }
+}
+  
+// ABMELDUNG (signOut)
+Future<void> signOut() async {
+  try {
+    await SupaClient.auth.signOut();
+  } on AuthException catch (e) {
+    throw Exception('Abmeldung fehlgeschlagen: ${e.message}');
+  }
+}
 }
