@@ -19,8 +19,7 @@ class DatabaseService {
             'image_url': recipe.imageUrl,
             'duration_minutes': recipe.durationMinutes,
             'servings': recipe.servings,
-            'difficulty': recipe.difficulty.name,
-          })
+            'difficulty': recipe.difficulty.name[0].toUpperCase() + recipe.difficulty.name.substring(1),          })
           .select()
           .single();
 
