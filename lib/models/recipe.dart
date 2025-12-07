@@ -39,6 +39,9 @@ class Recipe {
 
   // Factory method to create a Recipe from JSON (as returned by Supabase)
   factory Recipe.fromJson(Map<String, dynamic> json) {
+  
+  final nutritionData = (json['nutrition'] as List<dynamic>?)?.firstOrNull as Map<String, dynamic>?;
+
     return Recipe(
       id: json['id'],
       title: json['title'],
@@ -46,10 +49,10 @@ class Recipe {
       durationMinutes: json['duration_minutes'] ?? 0,
       servings: json['servings'] ?? 1,
       difficulty: _parseDifficulty(json['difficulty']),
-      calories: json['calories'],
-      protein: (json['protein_g'] as num?)?.toDouble(),
-      carbs: (json['carbs_g'] as num?)?.toDouble(),
-      fat: (json['fat_g'] as num?)?.toDouble(),
+      calories: nutritionData?['calories'] ,
+      protein: (nutritionData?['protein_g'] as num?)?.toDouble(),
+      carbs: (nutritionData?['carbs_g'] as num?)?.toDouble(),
+      fat: (nutritionData?['fat_g'] as num?)?.toDouble(),
       
       // Mapping des relations imbriquées (Supabase renvoie souvent ça via select(*, recipe_ingredients(...)))
       ingredients: (json['recipe_ingredients'] as List<dynamic>?)
@@ -74,10 +77,6 @@ class Recipe {
       'duration_minutes': durationMinutes,
       'servings': servings,
       'difficulty': difficulty.name.capitalize(), // ex: "mittel" -> "Mittel"
-      'calories': calories,
-      'protein_g': protein,
-      'carbs_g': carbs,
-      'fat_g': fat,
     };
   }
 
