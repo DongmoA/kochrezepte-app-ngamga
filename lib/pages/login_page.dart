@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
  import 'register_page.dart';
+ import 'package:kochrezepte_app/supabase/auth_service.dart';
  
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -11,6 +12,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final AuthService _authService = AuthService();
 
   @override
   void dispose() {  
@@ -211,11 +213,17 @@ class _LoginPageState extends State<LoginPage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        // TODO: Implement login/register logic
-                        print('Email: ${_emailController.text}');
-                        print('Password: ${_passwordController.text}');
-                      },
+               onPressed: () async {
+                   try {
+                     await _authService.signIn(
+                       email: _emailController.text,
+                       password: _passwordController.text,
+                     );
+                     print('Connexion réussie !');
+                  } catch (e) {
+                    print('Erreur : $e');
+                 }
+              },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFE65100),
                         foregroundColor: Colors.white,

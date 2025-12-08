@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:kochrezepte_app/supabase/supabase_client.dart';
 import 'pages/register_page.dart';
 import 'pages/login_page.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SupabaseClientManager.initialize();
   runApp(const MyApp());
 }
 

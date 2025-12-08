@@ -2,7 +2,7 @@ import 'package:kochrezepte_app/supabase/supabase_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // Nécessaire pour PostgrestException
 
 class AuthService {
-  final SupaClient = SupabaseClientManager.client;
+  SupabaseClient get SupaClient => SupabaseClientManager.client;
 
   // Méthode pour récupérer et afficher les users
   Future<void> printUsers() async {
