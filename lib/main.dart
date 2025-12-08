@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:kochrezepte_app/supabase/supabase_client.dart';
 import 'pages/register_page.dart';
 import 'pages/login_page.dart';
+import 'pages/Recipe/home.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,13 +16,13 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Rezept Manager',
+      debugShowCheckedModeBanner: false,
+      title: 'RecipeShare',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFE65100)),
         useMaterial3: true,
       ),
       home: const LoginPage(),
-      debugShowCheckedModeBanner: false,
     );
   }
 }
