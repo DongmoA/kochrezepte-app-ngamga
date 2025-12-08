@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'login_page.dart';
+import 'package:kochrezepte_app/supabase/auth_service.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -13,6 +14,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final AuthService _authService = AuthService();
   
 
   String _selectedPreference = 'Keine';
@@ -72,22 +74,23 @@ class _RegisterPageState extends State<RegisterPage> {
     return null;
   }
 
-  void _register() {
-    if (_formKey.currentState!.validate()) {
-      _formKey.currentState!.save();
-      setState(() => _isLoading = true);
-      
-      Future.delayed(const Duration(seconds: 2), () {
-        if (mounted) {
-          setState(() => _isLoading = false);
-          print('Name: ${_nameController.text}');
-          print('Email: ${_emailController.text}');
-          print('Password: ${_passwordController.text}');
-          print('Preference: $_selectedPreference');
-        }
-      });
+  Future<void> _register() async {
+  if (_formKey.currentState!.validate()) {
+    setState(() => _isLoading = true);
+    
+    try {
+      await _authService.signUp(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+      print('Inscription réussie !');
+    } catch (e) {
+      print('Erreur : $e');
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
+}
 
   void _navigateToLogin(BuildContext context) {
    
