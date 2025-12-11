@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
- import 'register_page.dart';
- import 'package:kochrezepte_app/supabase/auth_service.dart';
+import 'register_page.dart';
+import 'package:kochrezepte_app/supabase/auth_service.dart';
+import '../home.dart';
+
  
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -219,9 +221,15 @@ class _LoginPageState extends State<LoginPage> {
                        email: _emailController.text,
                        password: _passwordController.text,
                      );
-                     print('Connexion réussie !');
+                     debugPrint('Anmeldung erfolgreich !');
+                     Navigator.pushReplacement(
+                       context,
+                       MaterialPageRoute(
+                         builder: (context) => const RecipeHomePage(),
+                       ),
+                     );
                   } catch (e) {
-                    print('Erreur : $e');
+                    debugPrint('Fehler : $e');
                  }
               },
                       style: ElevatedButton.styleFrom(

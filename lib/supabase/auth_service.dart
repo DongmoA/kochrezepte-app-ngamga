@@ -1,34 +1,17 @@
-import 'package:flutter/widgets.dart';
+
 import 'package:kochrezepte_app/supabase/supabase_client.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // Nécessaire pour PostgrestException
 
 class AuthService {
-  SupabaseClient get SupaClient => SupabaseClientManager.client;
+  final supaClient = SupabaseClientManager.client;
 
-  // Méthode pour récupérer et afficher les users
-  Future<void> printUsers() async {
-    try {
-      final List<dynamic> data = await SupaClient.from('users').select();
 
-      final users = List<Map<String, dynamic>>.from(data);
-
-      for (var user in users) {
-        debugPrint('ID: ${user['id']}, Username: ${user['username']}, Email: ${user['email']}');
-      }
-    } on PostgrestException catch (error) {
-      debugPrint('Erreur Supabase: ${error.message}');
-    } catch (e) {
-      debugPrint('Erreur inattendue: $e');
-    }
-  }
-
-  // REGISTRIERUNG (signUp)
   Future<AuthResponse> signUp({
     required String email,
     required String password,
   }) async {
     try {
-      final response = await SupaClient.auth.signUp(
+      final response = await supaClient.auth.signUp(
         email: email,
         password: password,
       );
@@ -44,7 +27,7 @@ class AuthService {
     required String password,
   }) async {
     try {
-      final response = await SupaClient.auth.signInWithPassword(
+      final response = await supaClient.auth.signInWithPassword(
         email: email,
         password: password,
       );
@@ -57,7 +40,7 @@ class AuthService {
   // ABMELDUNG (signOut)
   Future<void> signOut() async {
     try {
-      await SupaClient.auth.signOut();
+      await supaClient.auth.signOut();
     } on AuthException catch (e) {
       throw Exception('Abmeldung fehlgeschlagen: ${e.message}');
     }

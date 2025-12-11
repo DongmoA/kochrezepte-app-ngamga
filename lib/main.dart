@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:kochrezepte_app/supabase/supabase_client.dart';
-import 'pages/register_page.dart';
-import 'pages/login_page.dart';
-import 'pages/Recipe/home.dart';
+
+import 'pages/Login_signUp/login_page.dart';
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
