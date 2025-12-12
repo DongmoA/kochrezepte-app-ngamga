@@ -1,33 +1,48 @@
-import 'package:flutter/widgets.dart';
+
 import 'package:kochrezepte_app/supabase/supabase_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // Nécessaire pour PostgrestException
 
 class AuthService {
   final supaClient = SupabaseClientManager.client;
 
-  // Méthode pour récupérer et afficher les users
-  Future<void> printUsers() async {
+
+  Future<AuthResponse> signUp({
+    required String email,
+    required String password,
+  }) async {
     try {
-      // 1. On attend directement le résultat du select()
-      // Plus besoin de .execute()
-      final List<dynamic> data = await supaClient
-          .from('users')
-          .select();
+      final response = await supaClient.auth.signUp(
+        email: email,
+        password: password,
+      );
+      return response;
+    } on AuthException catch (e) {
+      throw Exception('Registrierung fehlgeschlagen: ${e.message}');
+    }
+  }
 
-      // 2. Conversion des données (Supabase renvoie une List<dynamic> par défaut)
-      final users = List<Map<String, dynamic>>.from(data);
+  // ANMELDUNG (signIn)
+  Future<AuthResponse> signIn({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final response = await supaClient.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      return response;
+    } on AuthException catch (e) {
+      throw Exception('Anmeldung fehlgeschlagen: ${e.message}');
+    }
+  }
 
-      // Afficher chaque utilisateur dans la console
-      for (var user in users) {
-        debugPrint('ID: ${user['id']}, Username: ${user['username']}, Email: ${user['email']}');
-      }
-
-    } on PostgrestException catch (error) {
-      // 3. Gestion des erreurs via try/catch
-      debugPrint('Erreur Supabase: ${error.message}');
-    } catch (e) {
-      // Autres erreurs (ex: pas d'internet)
-      debugPrint('Erreur inattendue: $e');
+  // ABMELDUNG (signOut)
+  Future<void> signOut() async {
+    try {
+      await supaClient.auth.signOut();
+    } on AuthException catch (e) {
+      throw Exception('Abmeldung fehlgeschlagen: ${e.message}');
     }
   }
 }
