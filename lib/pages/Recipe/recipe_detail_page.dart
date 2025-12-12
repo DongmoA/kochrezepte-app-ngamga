@@ -1,10 +1,73 @@
 import 'package:flutter/material.dart';
 import '../../models/recipe.dart';
+import '../../supabase/database_service.dart';
 
-class RecipeDetailScreen extends StatelessWidget {
+class RecipeDetailPage extends StatefulWidget {
   final Recipe recipe;
 
-  const RecipeDetailScreen({super.key, required this.recipe});
+  const RecipeDetailPage({super.key, required this.recipe});
+
+  @override
+  State<RecipeDetailPage> createState() => _RecipeDetailPageState();
+}
+
+class _RecipeDetailPageState extends State<RecipeDetailPage> {
+  final DatabaseService _dbService = DatabaseService();
+  bool _isFavorite = false;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkFavoriteStatus();
+  }
+
+  Future<void> _checkFavoriteStatus() async {
+    if (widget.recipe.id != null && widget.recipe.id!.isNotEmpty) {
+      final isFav = await _dbService.isFavorite(widget.recipe.id!);
+      setState(() {
+        _isFavorite = isFav;
+        _isLoading = false;
+      });
+    } else {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    if (widget.recipe.id == null || widget.recipe.id!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Rezept-ID fehlt')),
+      );
+      return;
+    }
+
+    try {
+      if (_isFavorite) {
+        await _dbService.removeFromFavorites(widget.recipe.id!);
+        setState(() => _isFavorite = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Aus Favoriten entfernt')),
+          );
+        }
+      } else {
+        await _dbService.addToFavorites(widget.recipe.id!);
+        setState(() => _isFavorite = true);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Zu Favoriten hinzugefügt')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,17 +78,27 @@ class RecipeDetailScreen extends StatelessWidget {
             expandedHeight: 300,
             pinned: true,
             backgroundColor: Colors.orange,
+            actions: [
+              if (!_isLoading)
+                IconButton(
+                  icon: Icon(
+                    _isFavorite ? Icons.favorite : Icons.favorite_border,
+                    color: _isFavorite ? Colors.red : Colors.white,
+                  ),
+                  onPressed: _toggleFavorite,
+                ),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
-                recipe.title,
+                widget.recipe.title,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
                 ),
               ),
-              background: recipe.imageUrl != null && recipe.imageUrl!.isNotEmpty
+              background: widget.recipe.imageUrl != null && widget.recipe.imageUrl!.isNotEmpty
                   ? Image.network(
-                      recipe.imageUrl!,
+                      widget.recipe.imageUrl!,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => _buildPlaceholder(),
                     )
@@ -33,34 +106,28 @@ class RecipeDetailScreen extends StatelessWidget {
             ),
           ),
           
-          // Content
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Metadata
                   _buildMetadataSection(),
                   const SizedBox(height: 24),
                   
-                  // Tags
-                  if (recipe.tags.isNotEmpty) ...[
+                  if (widget.recipe.tags.isNotEmpty) ...[
                     _buildTagsSection(),
                     const SizedBox(height: 24),
                   ],
                   
-                  // Nutrition
                   if (_hasNutritionInfo()) ...[
                     _buildNutritionSection(),
                     const SizedBox(height: 24),
                   ],
                   
-                  // Ingredients
                   _buildIngredientsSection(),
                   const SizedBox(height: 24),
                   
-                  // Steps
                   _buildStepsSection(),
                   const SizedBox(height: 32),
                 ],
@@ -90,12 +157,12 @@ class RecipeDetailScreen extends StatelessWidget {
           children: [
             _buildMetadataItem(
               Icons.access_time,
-              '${recipe.durationMinutes} Min',
+              '${widget.recipe.durationMinutes} Min',
               'Dauer',
             ),
             _buildMetadataItem(
               Icons.restaurant,
-              '${recipe.servings}',
+              '${widget.recipe.servings}',
               'Portionen',
             ),
             _buildMetadataItem(
@@ -144,7 +211,7 @@ class RecipeDetailScreen extends StatelessWidget {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: recipe.tags.map((tag) {
+          children: widget.recipe.tags.map((tag) {
             return Chip(
               label: Text(tag),
               backgroundColor: Colors.orange[100],
@@ -171,14 +238,14 @@ class RecipeDetailScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                if (recipe.calories != null)
-                  _buildNutritionItem('Kalorien', '${recipe.calories}', 'kcal'),
-                if (recipe.protein != null)
-                  _buildNutritionItem('Protein', '${recipe.protein}', 'g'),
-                if (recipe.carbs != null)
-                  _buildNutritionItem('Kohlenhydrate', '${recipe.carbs}', 'g'),
-                if (recipe.fat != null)
-                  _buildNutritionItem('Fett', '${recipe.fat}', 'g'),
+                if (widget.recipe.calories != null)
+                  _buildNutritionItem('Kalorien', '${widget.recipe.calories}', 'kcal'),
+                if (widget.recipe.protein != null)
+                  _buildNutritionItem('Protein', '${widget.recipe.protein}', 'g'),
+                if (widget.recipe.carbs != null)
+                  _buildNutritionItem('Kohlenhydrate', '${widget.recipe.carbs}', 'g'),
+                if (widget.recipe.fat != null)
+                  _buildNutritionItem('Fett', '${widget.recipe.fat}', 'g'),
               ],
             ),
           ],
@@ -221,7 +288,7 @@ class RecipeDetailScreen extends StatelessWidget {
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        ...recipe.ingredients.map((ingredient) {
+        ...widget.recipe.ingredients.map((ingredient) {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(
@@ -252,7 +319,7 @@ class RecipeDetailScreen extends StatelessWidget {
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        ...recipe.steps.map((step) {
+        ...widget.recipe.steps.map((step) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 16),
             child: Row(
@@ -291,7 +358,7 @@ class RecipeDetailScreen extends StatelessWidget {
   }
 
   String _getDifficultyLabel() {
-    switch (recipe.difficulty) {
+    switch (widget.recipe.difficulty) {
       case Difficulty.einfach:
         return 'Einfach';
       case Difficulty.mittel:
@@ -302,9 +369,9 @@ class RecipeDetailScreen extends StatelessWidget {
   }
 
   bool _hasNutritionInfo() {
-    return recipe.calories != null ||
-        recipe.protein != null ||
-        recipe.carbs != null ||
-        recipe.fat != null;
+    return widget.recipe.calories != null ||
+        widget.recipe.protein != null ||
+        widget.recipe.carbs != null ||
+        widget.recipe.fat != null;
   }
 }

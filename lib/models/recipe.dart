@@ -38,36 +38,48 @@ class Recipe {
   });
 
   // Factory method to create a Recipe from JSON (as returned by Supabase)
-  factory Recipe.fromJson(Map<String, dynamic> json) {
+factory Recipe.fromJson(Map<String, dynamic> json) {
+  // Handle nutrition - kann ein Objekt, Array oder null sein
+  Map<String, dynamic>? nutritionData;
   
-  final nutritionData = (json['nutrition'] as List<dynamic>?)?.firstOrNull as Map<String, dynamic>?;
-
-    return Recipe(
-      id: json['id'],
-      title: json['title'],
-      imageUrl: json['image_url'],
-      durationMinutes: json['duration_minutes'] ?? 0,
-      servings: json['servings'] ?? 1,
-      difficulty: _parseDifficulty(json['difficulty']),
-      calories: nutritionData?['calories'] ,
-      protein: (nutritionData?['protein_g'] as num?)?.toDouble(),
-      carbs: (nutritionData?['carbs_g'] as num?)?.toDouble(),
-      fat: (nutritionData?['fat_g'] as num?)?.toDouble(),
-      
-      // Mapping des relations imbriquées (Supabase renvoie souvent ça via select(*, recipe_ingredients(...)))
-      ingredients: (json['recipe_ingredients'] as List<dynamic>?)
-          ?.map((e) => RecipeIngredient.fromJson(e))
-          .toList() ?? [],
-          
-      steps: (json['recipe_steps'] as List<dynamic>?)
-          ?.map((e) => RecipeStep.fromJson(e))
-          .toList() ?? [],
-          
-      tags: (json['recipe_tags'] as List<dynamic>?)
-          ?.map((e) => e['tags']['name'] as String) 
-          .toList() ?? [],
-    );
+  if (json['nutrition'] != null) {
+    if (json['nutrition'] is List) {
+      // Als Array (mit einem Element)
+      final nutritionList = json['nutrition'] as List<dynamic>;
+      if (nutritionList.isNotEmpty) {
+        nutritionData = nutritionList.first as Map<String, dynamic>?;
+      }
+    } else if (json['nutrition'] is Map) {
+      // Als einzelnes Objekt ← WAHRSCHEINLICH DAS HIER!
+      nutritionData = json['nutrition'] as Map<String, dynamic>;
+    }
   }
+
+  return Recipe(
+    id: json['id'],
+    title: json['title'],
+    imageUrl: json['image_url'],
+    durationMinutes: json['duration_minutes'] ?? 0,
+    servings: json['servings'] ?? 1,
+    difficulty: _parseDifficulty(json['difficulty']),
+    calories: nutritionData?['calories'],
+    protein: (nutritionData?['protein_g'] as num?)?.toDouble(),
+    carbs: (nutritionData?['carbs_g'] as num?)?.toDouble(),
+    fat: (nutritionData?['fat_g'] as num?)?.toDouble(),
+    
+    ingredients: (json['recipe_ingredients'] as List<dynamic>?)
+        ?.map((e) => RecipeIngredient.fromJson(e))
+        .toList() ?? [],
+        
+    steps: (json['recipe_steps'] as List<dynamic>?)
+        ?.map((e) => RecipeStep.fromJson(e))
+        .toList() ?? [],
+        
+    tags: (json['recipe_tags'] as List<dynamic>?)
+        ?.map((e) => e['tags']['name'] as String) 
+        .toList() ?? [],
+  );
+}
 
   // to send data back to Supabase
   Map<String, dynamic> toJson() {
