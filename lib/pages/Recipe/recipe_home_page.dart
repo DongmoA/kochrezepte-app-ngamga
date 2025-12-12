@@ -57,7 +57,7 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Meine Rezepte'),
+        title: const Text('Rezepte'),
         backgroundColor: Colors.orange,
       ),
       body: _isLoading

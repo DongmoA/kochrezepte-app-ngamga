@@ -336,7 +336,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                 onDelete: () {
                   setState(() {
                     _steps.remove(step);
-                    // Renumber steps
                     for (int i = 0; i < _steps.length; i++) {
                       _steps[i] = RecipeStep(
                         stepNumber: i + 1,
