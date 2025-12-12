@@ -45,4 +45,16 @@ class AuthService {
       throw Exception('Abmeldung fehlgeschlagen: ${e.message}');
     }
   }
+ 
+ // take the user id of the currently logged in user
+
+ String getCurrentUserId() {
+  final id = supaClient.auth.currentUser?.id;
+  if (id == null) {
+    // that means user is not logged in
+    throw Exception("User is not authenticated. Cannot perform rating operation.");
+  }
+  return id;
+}
+
 }

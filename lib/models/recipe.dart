@@ -9,7 +9,11 @@ class Recipe {
   final int durationMinutes;
   final int servings;
   final Difficulty difficulty;
-  
+
+  // raitings
+  final double averageRating;
+  final int totalRatings;
+
   // Nutrition
   final int? calories;
   final double? protein;
@@ -32,6 +36,8 @@ class Recipe {
     this.protein,
     this.carbs,
     this.fat,
+    this.averageRating = 0.0,
+    this.totalRatings = 0,
     this.ingredients = const [],
     this.steps = const [],
     this.tags = const [],
@@ -40,7 +46,7 @@ class Recipe {
   // Factory method to create a Recipe from JSON (as returned by Supabase)
   factory Recipe.fromJson(Map<String, dynamic> json) {
   
-  final nutritionData = (json['nutrition'] as List<dynamic>?)?.firstOrNull as Map<String, dynamic>?;
+  final nutritionData = json['nutrition'] as Map<String, dynamic>?;
 
     return Recipe(
       id: json['id'],
@@ -53,8 +59,10 @@ class Recipe {
       protein: (nutritionData?['protein_g'] as num?)?.toDouble(),
       carbs: (nutritionData?['carbs_g'] as num?)?.toDouble(),
       fat: (nutritionData?['fat_g'] as num?)?.toDouble(),
-      
-      // Mapping des relations imbriquées (Supabase renvoie souvent ça via select(*, recipe_ingredients(...)))
+      averageRating: (json['average_rating'] as num?)?.toDouble() ?? 0.0,
+      totalRatings: json['total_ratings'] ?? 0,
+      // relational data (assuming Supabase returns nested data like
+      // select(*, recipe_ingredients(...)))
       ingredients: (json['recipe_ingredients'] as List<dynamic>?)
           ?.map((e) => RecipeIngredient.fromJson(e))
           .toList() ?? [],
@@ -77,6 +85,8 @@ class Recipe {
       'duration_minutes': durationMinutes,
       'servings': servings,
       'difficulty': difficulty.name.capitalize(), // ex: "mittel" -> "Mittel"
+      'average_rating': averageRating,
+      'total_ratings': totalRatings,
     };
   }
 

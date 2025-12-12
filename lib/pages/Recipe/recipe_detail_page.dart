@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/recipe.dart';
+import '../../widgets/recipe_detail_items.dart'; // Import detail-specific widgets
+import '../../widgets/rating_widget.dart'; // Import the rating widget
 
 class RecipeDetailScreen extends StatelessWidget {
   final Recipe recipe;
@@ -11,6 +13,7 @@ class RecipeDetailScreen extends StatelessWidget {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
+          // 1. App Bar with Image
           SliverAppBar(
             expandedHeight: 300,
             pinned: true,
@@ -33,35 +36,48 @@ class RecipeDetailScreen extends StatelessWidget {
             ),
           ),
           
-          // Content
+          // 2. Scrollable Content
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Metadata
+                  // Metadata (Duration, Servings, Difficulty)
                   _buildMetadataSection(),
                   const SizedBox(height: 24),
                   
+                 //  Recipe Rating System
+                  RecipeRatingWidget(recipe: recipe),
+
                   // Tags
                   if (recipe.tags.isNotEmpty) ...[
                     _buildTagsSection(),
                     const SizedBox(height: 24),
                   ],
                   
-                  // Nutrition
+                  // Nutrition Info
                   if (_hasNutritionInfo()) ...[
                     _buildNutritionSection(),
                     const SizedBox(height: 24),
                   ],
                   
-                  // Ingredients
-                  _buildIngredientsSection(),
+                  // Ingredients List
+                  const Text(
+                    'Ingredients',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  ...recipe.ingredients.map((ing) => IngredientItem(ingredient: ing)),
                   const SizedBox(height: 24),
                   
-                  // Steps
-                  _buildStepsSection(),
+                  // Preparation Steps List
+                  const Text(
+                    'Preparation',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  ...recipe.steps.map((step) => StepItem(step: step)),
                   const SizedBox(height: 32),
                 ],
               ),
@@ -72,6 +88,7 @@ class RecipeDetailScreen extends StatelessWidget {
     );
   }
 
+  /// Placeholder for when image is missing
   Widget _buildPlaceholder() {
     return Container(
       color: Colors.grey[300],
@@ -81,6 +98,7 @@ class RecipeDetailScreen extends StatelessWidget {
     );
   }
 
+  /// Section displaying basic stats (Time, Servings, Difficulty)
   Widget _buildMetadataSection() {
     return Card(
       child: Padding(
@@ -91,17 +109,17 @@ class RecipeDetailScreen extends StatelessWidget {
             _buildMetadataItem(
               Icons.access_time,
               '${recipe.durationMinutes} Min',
-              'Dauer',
+              'Duration',
             ),
             _buildMetadataItem(
               Icons.restaurant,
               '${recipe.servings}',
-              'Portionen',
+              'Servings',
             ),
             _buildMetadataItem(
               Icons.signal_cellular_alt,
               _getDifficultyLabel(),
-              'Schwierigkeit',
+              'Difficulty',
             ),
           ],
         ),
@@ -109,6 +127,8 @@ class RecipeDetailScreen extends StatelessWidget {
     );
   }
 
+  /// Helper for metadata column (Icon + Value + Label)
+  /// Kept local as it's specific to this header design
   Widget _buildMetadataItem(IconData icon, String value, String label) {
     return Column(
       children: [
@@ -116,17 +136,11 @@ class RecipeDetailScreen extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           value,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         Text(
           label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
-          ),
+          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
         ),
       ],
     );
@@ -164,7 +178,7 @@ class RecipeDetailScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Nährwerte pro Portion',
+              'Nutrition per serving',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
@@ -172,13 +186,13 @@ class RecipeDetailScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 if (recipe.calories != null)
-                  _buildNutritionItem('Kalorien', '${recipe.calories}', 'kcal'),
+                  NutritionInfoItem(label: 'Calories', value: '${recipe.calories}', unit: 'kcal'),
                 if (recipe.protein != null)
-                  _buildNutritionItem('Protein', '${recipe.protein}', 'g'),
+                  NutritionInfoItem(label: 'Protein', value: '${recipe.protein}', unit: 'g'),
                 if (recipe.carbs != null)
-                  _buildNutritionItem('Kohlenhydrate', '${recipe.carbs}', 'g'),
+                  NutritionInfoItem(label: 'Carbs', value: '${recipe.carbs}', unit: 'g'),
                 if (recipe.fat != null)
-                  _buildNutritionItem('Fett', '${recipe.fat}', 'g'),
+                  NutritionInfoItem(label: 'Fat', value: '${recipe.fat}', unit: 'g'),
               ],
             ),
           ],
@@ -187,118 +201,9 @@ class RecipeDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildNutritionItem(String label, String value, String unit) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Colors.orange,
-          ),
-        ),
-        Text(
-          unit,
-          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildIngredientsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Zutaten',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        ...recipe.ingredients.map((ingredient) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              children: [
-                const Icon(Icons.check_circle_outline, 
-                    color: Colors.orange, size: 20),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    '${ingredient.quantity} ${ingredient.unit} ${ingredient.name}',
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
-  Widget _buildStepsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Zubereitung',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        ...recipe.steps.map((step) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: Colors.orange,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${step.stepNumber}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    step.instruction,
-                    style: const TextStyle(fontSize: 16, height: 1.5),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
   String _getDifficultyLabel() {
-    switch (recipe.difficulty) {
-      case Difficulty.einfach:
-        return 'Einfach';
-      case Difficulty.mittel:
-        return 'Mittel';
-      case Difficulty.schwer:
-        return 'Schwer';
-    }
+    // Simple helper to translate enum to string
+    return recipe.difficulty.name[0].toUpperCase() + recipe.difficulty.name.substring(1);
   }
 
   bool _hasNutritionInfo() {
