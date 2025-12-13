@@ -1,34 +1,155 @@
 import 'package:flutter/material.dart';
 import '../../models/recipe.dart';
-import '../../widgets/recipe_detail_items.dart'; // Import detail-specific widgets
-import '../../widgets/rating_widget.dart'; // Import the rating widget
+import '../../supabase/database_service.dart';
 
-class RecipeDetailScreen extends StatelessWidget {
+class RecipeDetailPage extends StatefulWidget {
   final Recipe recipe;
 
-  const RecipeDetailScreen({super.key, required this.recipe});
+  const RecipeDetailPage({super.key, required this.recipe});
+
+  @override
+  State<RecipeDetailPage> createState() => _RecipeDetailPageState();
+}
+
+class _RecipeDetailPageState extends State<RecipeDetailPage> {
+  final DatabaseService _dbService = DatabaseService();
+  bool _isFavorite = false;
+  int? _userRating;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkStatus();
+  }
+
+  Future<void> _checkStatus() async {
+    if (widget.recipe.id != null && widget.recipe.id!.isNotEmpty) {
+      final isFav = await _dbService.isFavorite(widget.recipe.id!);
+      final userRating = await _dbService.fetchUserRating(widget.recipe.id!);
+      if (mounted) {
+        setState(() {
+          _isFavorite = isFav;
+          _userRating = userRating;
+          _isLoading = false;
+        });
+      }
+    } else {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    if (widget.recipe.id == null || widget.recipe.id!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Recipe ID missing')),
+      );
+      return;
+    }
+
+    try {
+      if (_isFavorite) {
+        await _dbService.removeFromFavorites(widget.recipe.id!);
+        setState(() => _isFavorite = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Removed from saved 🔖')),
+          );
+        }
+      } else {
+        await _dbService.addToFavorites(widget.recipe.id!);
+        setState(() => _isFavorite = true);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Added to saved 🔖')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showRatingDialog() async {
+    if (widget.recipe.id == null || widget.recipe.id!.isEmpty) return;
+
+    final rating = await showDialog<int>(
+      context: context,
+      builder: (context) => _RatingDialog(currentRating: _userRating),
+    );
+
+    if (rating != null && mounted) {
+      try {
+        await _dbService.rateRecipe(
+          recipeId: widget.recipe.id!,
+          score: rating,
+        );
+        
+        setState(() {
+          _userRating = rating;
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Rating submitted: $rating ⭐'),
+              duration: const Duration(seconds: 1),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e')),
+          );
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // 1. App Bar with Image
+          // App Bar with Image
           SliverAppBar(
             expandedHeight: 300,
             pinned: true,
             backgroundColor: Colors.orange,
+            actions: [
+              if (!_isLoading)
+                IconButton(
+                  icon: Icon(
+                    _isFavorite ? Icons.bookmark : Icons.bookmark_border,
+                    color: _isFavorite ? Colors.orange : Colors.white,
+                  ),
+                  onPressed: _toggleFavorite,
+                ),
+              if (!_isLoading)
+                IconButton(
+                  icon: Icon(
+                    _userRating != null ? Icons.star : Icons.star_border,
+                    color: _userRating != null ? Colors.amber : Colors.white,
+                  ),
+                  onPressed: _showRatingDialog,
+                ),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
-                recipe.title,
+                widget.recipe.title,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
                 ),
               ),
-              background: recipe.imageUrl != null && recipe.imageUrl!.isNotEmpty
+              background: widget.recipe.imageUrl != null && widget.recipe.imageUrl!.isNotEmpty
                   ? Image.network(
-                      recipe.imageUrl!,
+                      widget.recipe.imageUrl!,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => _buildPlaceholder(),
                     )
@@ -36,48 +157,29 @@ class RecipeDetailScreen extends StatelessWidget {
             ),
           ),
           
-          // 2. Scrollable Content
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Metadata (Duration, Servings, Difficulty)
                   _buildMetadataSection(),
                   const SizedBox(height: 24),
                   
-                 //  Recipe Rating System
-                  RecipeRatingWidget(recipe: recipe),
-
-                  // Tags
-                  if (recipe.tags.isNotEmpty) ...[
+                  if (widget.recipe.tags.isNotEmpty) ...[
                     _buildTagsSection(),
                     const SizedBox(height: 24),
                   ],
                   
-                  // Nutrition Info
                   if (_hasNutritionInfo()) ...[
                     _buildNutritionSection(),
                     const SizedBox(height: 24),
                   ],
                   
-                  // Ingredients List
-                  const Text(
-                    'Ingredients',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  ...recipe.ingredients.map((ing) => IngredientItem(ingredient: ing)),
+                  _buildIngredientsSection(),
                   const SizedBox(height: 24),
                   
-                  // Preparation Steps List
-                  const Text(
-                    'Preparation',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  ...recipe.steps.map((step) => StepItem(step: step)),
+                  _buildStepsSection(),
                   const SizedBox(height: 32),
                 ],
               ),
@@ -88,7 +190,6 @@ class RecipeDetailScreen extends StatelessWidget {
     );
   }
 
-  /// Placeholder for when image is missing
   Widget _buildPlaceholder() {
     return Container(
       color: Colors.grey[300],
@@ -98,28 +199,66 @@ class RecipeDetailScreen extends StatelessWidget {
     );
   }
 
-  /// Section displaying basic stats (Time, Servings, Difficulty)
   Widget _buildMetadataSection() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
+        child: Column(
           children: [
-            _buildMetadataItem(
-              Icons.access_time,
-              '${recipe.durationMinutes} Min',
-              'Duration',
-            ),
-            _buildMetadataItem(
-              Icons.restaurant,
-              '${recipe.servings}',
-              'Servings',
-            ),
-            _buildMetadataItem(
-              Icons.signal_cellular_alt,
-              _getDifficultyLabel(),
-              'Difficulty',
+            // Rating Display
+            if (widget.recipe.totalRatings > 0) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.star, color: Colors.amber, size: 24),
+                  const SizedBox(width: 8),
+                  Text(
+                    widget.recipe.averageRating.toStringAsFixed(1),
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    ' / 5',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '(${widget.recipe.totalRatings} ratings)',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: 32),
+            ],
+            
+            // Metadata Row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildMetadataItem(
+                  Icons.access_time,
+                  '${widget.recipe.durationMinutes} min',
+                  'Duration',
+                ),
+                _buildMetadataItem(
+                  Icons.restaurant,
+                  '${widget.recipe.servings}',
+                  'Servings',
+                ),
+                _buildMetadataItem(
+                  Icons.signal_cellular_alt,
+                  _getDifficultyLabel(),
+                  'Difficulty',
+                ),
+              ],
             ),
           ],
         ),
@@ -127,8 +266,6 @@ class RecipeDetailScreen extends StatelessWidget {
     );
   }
 
-  /// Helper for metadata column (Icon + Value + Label)
-  /// Kept local as it's specific to this header design
   Widget _buildMetadataItem(IconData icon, String value, String label) {
     return Column(
       children: [
@@ -158,7 +295,7 @@ class RecipeDetailScreen extends StatelessWidget {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: recipe.tags.map((tag) {
+          children: widget.recipe.tags.map((tag) {
             return Chip(
               label: Text(tag),
               backgroundColor: Colors.orange[100],
@@ -185,14 +322,14 @@ class RecipeDetailScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                if (recipe.calories != null)
-                  NutritionInfoItem(label: 'Calories', value: '${recipe.calories}', unit: 'kcal'),
-                if (recipe.protein != null)
-                  NutritionInfoItem(label: 'Protein', value: '${recipe.protein}', unit: 'g'),
-                if (recipe.carbs != null)
-                  NutritionInfoItem(label: 'Carbs', value: '${recipe.carbs}', unit: 'g'),
-                if (recipe.fat != null)
-                  NutritionInfoItem(label: 'Fat', value: '${recipe.fat}', unit: 'g'),
+                if (widget.recipe.calories != null)
+                  _buildNutritionItem('Calories', '${widget.recipe.calories}', 'kcal'),
+                if (widget.recipe.protein != null)
+                  _buildNutritionItem('Protein', '${widget.recipe.protein}', 'g'),
+                if (widget.recipe.carbs != null)
+                  _buildNutritionItem('Carbs', '${widget.recipe.carbs}', 'g'),
+                if (widget.recipe.fat != null)
+                  _buildNutritionItem('Fat', '${widget.recipe.fat}', 'g'),
               ],
             ),
           ],
@@ -201,15 +338,220 @@ class RecipeDetailScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildNutritionItem(String label, String value, String unit) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Colors.orange,
+          ),
+        ),
+        Text(
+          unit,
+          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildIngredientsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Ingredients',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        ...widget.recipe.ingredients.map((ingredient) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                const Icon(Icons.check_circle_outline, 
+                    color: Colors.orange, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '${ingredient.quantity} ${ingredient.unit} ${ingredient.name}',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildStepsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Instructions',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        ...widget.recipe.steps.map((step) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.orange,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${step.stepNumber}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    step.instruction,
+                    style: const TextStyle(fontSize: 16, height: 1.5),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
   String _getDifficultyLabel() {
-    // Simple helper to translate enum to string
-    return recipe.difficulty.name[0].toUpperCase() + recipe.difficulty.name.substring(1);
+    switch (widget.recipe.difficulty) {
+      case Difficulty.einfach:
+        return 'Easy';
+      case Difficulty.mittel:
+        return 'Medium';
+      case Difficulty.schwer:
+        return 'Hard';
+    }
   }
 
   bool _hasNutritionInfo() {
-    return recipe.calories != null ||
-        recipe.protein != null ||
-        recipe.carbs != null ||
-        recipe.fat != null;
+    return widget.recipe.calories != null ||
+        widget.recipe.protein != null ||
+        widget.recipe.carbs != null ||
+        widget.recipe.fat != null;
+  }
+}
+
+// ==================== RATING DIALOG ====================
+
+class _RatingDialog extends StatefulWidget {
+  final int? currentRating;
+
+  const _RatingDialog({this.currentRating});
+
+  @override
+  State<_RatingDialog> createState() => _RatingDialogState();
+}
+
+class _RatingDialogState extends State<_RatingDialog> {
+  int? _selectedRating;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedRating = widget.currentRating;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Rate Recipe'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('How did you like this recipe?'),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(5, (index) {
+              final rating = index + 1;
+              return IconButton(
+                iconSize: 40,
+                onPressed: () {
+                  setState(() {
+                    _selectedRating = rating;
+                  });
+                },
+                icon: Icon(
+                  rating <= (_selectedRating ?? 0) ? Icons.star : Icons.star_border,
+                  color: rating <= (_selectedRating ?? 0) ? Colors.amber : Colors.grey,
+                ),
+              );
+            }),
+          ),
+          if (_selectedRating != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              _getRatingText(_selectedRating!),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
+              ),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _selectedRating != null
+              ? () => Navigator.pop(context, _selectedRating)
+              : null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.orange,
+          ),
+          child: const Text('Rate'),
+        ),
+      ],
+    );
+  }
+
+  String _getRatingText(int rating) {
+    switch (rating) {
+      case 1:
+        return 'Bad';
+      case 2:
+        return 'Okay';
+      case 3:
+        return 'Good';
+      case 4:
+        return 'Very good';
+      case 5:
+        return 'Excellent!';
+      default:
+        return '';
+    }
   }
 }

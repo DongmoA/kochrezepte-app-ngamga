@@ -1,5 +1,3 @@
-
-
 enum Difficulty { einfach, mittel, schwer }
 
 class Recipe {
@@ -10,7 +8,7 @@ class Recipe {
   final int servings;
   final Difficulty difficulty;
 
-  // raitings
+  // Ratings (für zukünftige Nutzung)
   final double averageRating;
   final int totalRatings;
 
@@ -20,10 +18,10 @@ class Recipe {
   final double? carbs;
   final double? fat;
 
-  // relational lists
+  // Relational lists
   final List<RecipeIngredient> ingredients;
   final List<RecipeStep> steps;
-  final List<String> tags; // list of tag names
+  final List<String> tags;
 
   Recipe({
     this.id,
@@ -45,8 +43,21 @@ class Recipe {
 
   // Factory method to create a Recipe from JSON (as returned by Supabase)
   factory Recipe.fromJson(Map<String, dynamic> json) {
-  
-  final nutritionData = json['nutrition'] as Map<String, dynamic>?;
+    // Handle nutrition - kann ein Objekt, Array oder null sein
+    Map<String, dynamic>? nutritionData;
+    
+    if (json['nutrition'] != null) {
+      if (json['nutrition'] is List) {
+        // Als Array (mit einem Element)
+        final nutritionList = json['nutrition'] as List<dynamic>;
+        if (nutritionList.isNotEmpty) {
+          nutritionData = nutritionList.first as Map<String, dynamic>?;
+        }
+      } else if (json['nutrition'] is Map) {
+        // Als einzelnes Objekt
+        nutritionData = json['nutrition'] as Map<String, dynamic>;
+      }
+    }
 
     return Recipe(
       id: json['id'],
@@ -55,14 +66,13 @@ class Recipe {
       durationMinutes: json['duration_minutes'] ?? 0,
       servings: json['servings'] ?? 1,
       difficulty: _parseDifficulty(json['difficulty']),
-      calories: nutritionData?['calories'] ,
+      calories: nutritionData?['calories'],
       protein: (nutritionData?['protein_g'] as num?)?.toDouble(),
       carbs: (nutritionData?['carbs_g'] as num?)?.toDouble(),
       fat: (nutritionData?['fat_g'] as num?)?.toDouble(),
       averageRating: (json['average_rating'] as num?)?.toDouble() ?? 0.0,
       totalRatings: json['total_ratings'] ?? 0,
-      // relational data (assuming Supabase returns nested data like
-      // select(*, recipe_ingredients(...)))
+      
       ingredients: (json['recipe_ingredients'] as List<dynamic>?)
           ?.map((e) => RecipeIngredient.fromJson(e))
           .toList() ?? [],
@@ -77,14 +87,14 @@ class Recipe {
     );
   }
 
-  // to send data back to Supabase
+  // To send data back to Supabase
   Map<String, dynamic> toJson() {
     return {
       'title': title,
       'image_url': imageUrl,
       'duration_minutes': durationMinutes,
       'servings': servings,
-      'difficulty': difficulty.name.capitalize(), // ex: "mittel" -> "Mittel"
+      'difficulty': difficulty.name.capitalize(),
       'average_rating': averageRating,
       'total_ratings': totalRatings,
     };
@@ -92,9 +102,12 @@ class Recipe {
 
   static Difficulty _parseDifficulty(String? value) {
     switch (value?.toLowerCase()) {
-      case 'einfach': return Difficulty.einfach;
-      case 'schwer': return Difficulty.schwer;
-      default: return Difficulty.mittel;
+      case 'einfach':
+        return Difficulty.einfach;
+      case 'schwer':
+        return Difficulty.schwer;
+      default:
+        return Difficulty.mittel;
     }
   }
 }
@@ -107,7 +120,7 @@ extension StringExtension on String {
 }
 
 class RecipeIngredient {
-  final String name; // the name come from the table 'ingredients'
+  final String name;
   final double quantity;
   final String unit;
 
@@ -119,8 +132,7 @@ class RecipeIngredient {
 
   factory RecipeIngredient.fromJson(Map<String, dynamic> json) {
     return RecipeIngredient(
-      // Gère le cas où Supabase renvoie l'objet ingredient imbriqué
-      name: json['ingredients'] != null ? json['ingredients']['name'] : 'Inconnu',
+      name: json['ingredients'] != null ? json['ingredients']['name'] : 'Unbekannt',
       quantity: (json['quantity'] as num).toDouble(),
       unit: json['unit'],
     );

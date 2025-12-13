@@ -51,21 +51,21 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
   Future<void> _saveRecipe() async {
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bitte fülle alle Pflichtfelder aus')),
+        const SnackBar(content: Text('Please fill in all required fields')),
       );
       return;
     }
 
     if (_ingredients.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Füge mindestens eine Zutat hinzu')),
+        const SnackBar(content: Text('Add at least one ingredient')),
       );
       return;
     }
 
     if (_steps.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Füge mindestens einen Schritt hinzu')),
+        const SnackBar(content: Text('Add at least one step')),
       );
       return;
     }
@@ -103,15 +103,15 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Rezept erfolgreich gespeichert!')),
+          const SnackBar(content: Text('Recipe saved successfully!')),
         );
-        Navigator.pop(context, true); // Return true to indicate success
+        Navigator.pop(context, true);
       }
     } catch (e) {
       setState(() => _isSaving = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler beim Speichern: $e')),
+          SnackBar(content: Text('Error saving: $e')),
         );
       }
     }
@@ -157,7 +157,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Neues Rezept'),
+        title: const Text('New Recipe'),
         backgroundColor: Colors.orange,
         actions: [
           if (_isSaving)
@@ -180,21 +180,21 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
           padding: const EdgeInsets.all(16),
           children: [
             // BASIC INFO SECTION
-            _buildSectionHeader('Grundinformationen'),
+            _buildSectionHeader('Basic Information'),
             TextFormField(
               controller: _titleController,
               decoration: const InputDecoration(
-                labelText: 'Titel *',
+                labelText: 'Title *',
                 border: OutlineInputBorder(),
               ),
-              validator: (v) => v?.isEmpty ?? true ? 'Titel erforderlich' : null,
+              validator: (v) => v?.isEmpty ?? true ? 'Title required' : null,
             ),
             const SizedBox(height: 16),
             
             TextFormField(
               controller: _imageUrlController,
               decoration: const InputDecoration(
-                labelText: 'Bild-URL (optional)',
+                labelText: 'Image URL (optional)',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -206,12 +206,12 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                   child: TextFormField(
                     controller: _durationController,
                     decoration: const InputDecoration(
-                      labelText: 'Dauer (Min) *',
+                      labelText: 'Duration (min) *',
                       border: OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    validator: (v) => v?.isEmpty ?? true ? 'Erforderlich' : null,
+                    validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -219,12 +219,12 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                   child: TextFormField(
                     controller: _servingsController,
                     decoration: const InputDecoration(
-                      labelText: 'Portionen *',
+                      labelText: 'Servings *',
                       border: OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    validator: (v) => v?.isEmpty ?? true ? 'Erforderlich' : null,
+                    validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
                   ),
                 ),
               ],
@@ -234,7 +234,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
             DropdownButtonFormField<Difficulty>(
               value: _selectedDifficulty,
               decoration: const InputDecoration(
-                labelText: 'Schwierigkeit',
+                labelText: 'Difficulty',
                 border: OutlineInputBorder(),
               ),
               items: Difficulty.values.map((d) {
@@ -253,14 +253,14 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
             const SizedBox(height: 32),
 
             // NUTRITION SECTION
-            _buildSectionHeader('Nährwerte (optional)'),
+            _buildSectionHeader('Nutrition (optional)'),
             Row(
               children: [
                 Expanded(
                   child: TextFormField(
                     controller: _caloriesController,
                     decoration: const InputDecoration(
-                      labelText: 'Kalorien',
+                      labelText: 'Calories',
                       border: OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.number,
@@ -288,7 +288,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                   child: TextFormField(
                     controller: _carbsController,
                     decoration: const InputDecoration(
-                      labelText: 'Kohlenhydrate (g)',
+                      labelText: 'Carbs (g)',
                       border: OutlineInputBorder(),
                     ),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -299,7 +299,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                   child: TextFormField(
                     controller: _fatController,
                     decoration: const InputDecoration(
-                      labelText: 'Fett (g)',
+                      labelText: 'Fat (g)',
                       border: OutlineInputBorder(),
                     ),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -311,7 +311,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
             const SizedBox(height: 32),
 
             // INGREDIENTS SECTION
-            _buildSectionHeader('Zutaten'),
+            _buildSectionHeader('Ingredients'),
             ..._ingredients.asMap().entries.map((entry) {
               return _buildListItem(
                 '${entry.value.quantity} ${entry.value.unit} ${entry.value.name}',
@@ -323,20 +323,19 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
             OutlinedButton.icon(
               onPressed: _addIngredient,
               icon: const Icon(Icons.add),
-              label: const Text('Zutat hinzufügen'),
+              label: const Text('Add Ingredient'),
             ),
 
             const SizedBox(height: 32),
 
             // STEPS SECTION
-            _buildSectionHeader('Zubereitungsschritte'),
+            _buildSectionHeader('Preparation Steps'),
             ..._steps.map((step) {
               return _buildListItem(
-                'Schritt ${step.stepNumber}: ${step.instruction}',
+                'Step ${step.stepNumber}: ${step.instruction}',
                 onDelete: () {
                   setState(() {
                     _steps.remove(step);
-                    // Renumber steps
                     for (int i = 0; i < _steps.length; i++) {
                       _steps[i] = RecipeStep(
                         stepNumber: i + 1,
@@ -350,7 +349,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
             OutlinedButton.icon(
               onPressed: _addStep,
               icon: const Icon(Icons.add),
-              label: const Text('Schritt hinzufügen'),
+              label: const Text('Add Step'),
             ),
 
             const SizedBox(height: 32),
@@ -375,7 +374,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
             OutlinedButton.icon(
               onPressed: _addTag,
               icon: const Icon(Icons.add),
-              label: const Text('Tag hinzufügen'),
+              label: const Text('Add Tag'),
             ),
 
             const SizedBox(height: 32),
@@ -415,11 +414,11 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
   String _getDifficultyLabel(Difficulty d) {
     switch (d) {
       case Difficulty.einfach:
-        return 'Einfach';
+        return 'Easy';
       case Difficulty.mittel:
-        return 'Mittel';
+        return 'Medium';
       case Difficulty.schwer:
-        return 'Schwer';
+        return 'Hard';
     }
   }
 }
@@ -451,7 +450,7 @@ class _IngredientDialogState extends State<_IngredientDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Zutat hinzufügen'),
+      title: const Text('Add Ingredient'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -461,19 +460,19 @@ class _IngredientDialogState extends State<_IngredientDialog> {
           ),
           TextField(
             controller: _quantityController,
-            decoration: const InputDecoration(labelText: 'Menge'),
+            decoration: const InputDecoration(labelText: 'Quantity'),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
           ),
           TextField(
             controller: _unitController,
-            decoration: const InputDecoration(labelText: 'Einheit (z.B. g, ml, Stück)'),
+            decoration: const InputDecoration(labelText: 'Unit (e.g. g, ml, pcs)'),
           ),
         ],
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Abbrechen'),
+          child: const Text('Cancel'),
         ),
         ElevatedButton(
           onPressed: () {
@@ -490,12 +489,12 @@ class _IngredientDialogState extends State<_IngredientDialog> {
                 Navigator.pop(context);
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Bitte gib eine gültige Menge ein')),
+                  const SnackBar(content: Text('Please enter a valid quantity')),
                 );
               }
             }
           },
-          child: const Text('Hinzufügen'),
+          child: const Text('Add'),
         ),
       ],
     );
@@ -524,16 +523,16 @@ class _StepDialogState extends State<_StepDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Schritt ${widget.stepNumber}'),
+      title: Text('Step ${widget.stepNumber}'),
       content: TextField(
         controller: _instructionController,
-        decoration: const InputDecoration(labelText: 'Anweisung'),
+        decoration: const InputDecoration(labelText: 'Instruction'),
         maxLines: 3,
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Abbrechen'),
+          child: const Text('Cancel'),
         ),
         ElevatedButton(
           onPressed: () {
@@ -545,7 +544,7 @@ class _StepDialogState extends State<_StepDialog> {
               Navigator.pop(context);
             }
           },
-          child: const Text('Hinzufügen'),
+          child: const Text('Add'),
         ),
       ],
     );
@@ -573,15 +572,15 @@ class _TagDialogState extends State<_TagDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Tag hinzufügen'),
+      title: const Text('Add Tag'),
       content: TextField(
         controller: _tagController,
-        decoration: const InputDecoration(labelText: 'Tag-Name'),
+        decoration: const InputDecoration(labelText: 'Tag Name'),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Abbrechen'),
+          child: const Text('Cancel'),
         ),
         ElevatedButton(
           onPressed: () {
@@ -590,7 +589,7 @@ class _TagDialogState extends State<_TagDialog> {
               Navigator.pop(context);
             }
           },
-          child: const Text('Hinzufügen'),
+          child: const Text('Add'),
         ),
       ],
     );
