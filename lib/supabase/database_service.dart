@@ -12,7 +12,7 @@ class DatabaseService {
   Future<String> createRecipe(Recipe recipe) async {
     try {
       final userId = _db.auth.currentUser?.id;
-      
+
       if (userId == null) {
         throw Exception('User not logged in');
       }
@@ -25,7 +25,9 @@ class DatabaseService {
             'image_url': recipe.imageUrl,
             'duration_minutes': recipe.durationMinutes,
             'servings': recipe.servings,
-            'difficulty': recipe.difficulty.name[0].toUpperCase() + recipe.difficulty.name.substring(1),
+            'difficulty':
+                recipe.difficulty.name[0].toUpperCase() +
+                recipe.difficulty.name.substring(1),
             'author_id': userId,
           })
           .select()
@@ -113,7 +115,6 @@ class DatabaseService {
       }
 
       return recipeId;
-
     } catch (e) {
       debugPrint("❌ ERROR createRecipe(): $e");
       rethrow;
@@ -121,7 +122,7 @@ class DatabaseService {
   }
 
   // ==================== FETCH RECIPES ====================
-  
+
   /// Fetch ALL recipes (for general listing)
   Future<List<Recipe>> fetchAllRecipes() async {
     try {
@@ -135,7 +136,7 @@ class DatabaseService {
             nutrition(calories, protein_g, carbs_g, fat_g)
           ''')
           .order('created_at', ascending: false);
-      
+
       return _parseRecipes(data);
     } catch (e) {
       debugPrint("❌ ERROR fetchAllRecipes(): $e");
@@ -147,7 +148,7 @@ class DatabaseService {
   Future<List<Recipe>> fetchMyRecipes() async {
     try {
       final userId = _db.auth.currentUser?.id;
-      
+
       if (userId == null) {
         debugPrint("⚠️ No user logged in");
         return [];
@@ -164,7 +165,7 @@ class DatabaseService {
           ''')
           .eq('author_id', userId)
           .order('created_at', ascending: false);
-      
+
       debugPrint("✅ ${(data as List).length} own recipes loaded");
       return _parseRecipes(data);
     } catch (e) {
@@ -177,7 +178,7 @@ class DatabaseService {
   Future<List<Recipe>> fetchSavedRecipes() async {
     try {
       final userId = _db.auth.currentUser?.id;
-      
+
       if (userId == null) {
         debugPrint("⚠️ No user logged in");
         return [];
@@ -209,7 +210,7 @@ class DatabaseService {
           ''')
           .inFilter('id', recipeIds)
           .order('created_at', ascending: false);
-      
+
       debugPrint("✅ ${(data as List).length} saved recipes loaded");
       return _parseRecipes(data);
     } catch (e) {
@@ -234,7 +235,7 @@ class DatabaseService {
           .gte('total_ratings', 1) // ← Für Testing: 1 statt 5
           .order('average_rating', ascending: false)
           .limit(20);
-      
+
       debugPrint("✅ ${(data as List).length} popular recipes loaded");
       return _parseRecipes(data);
     } catch (e) {
@@ -247,7 +248,7 @@ class DatabaseService {
   Future<List<Recipe>> fetchNewRecipes() async {
     try {
       final threeDaysAgo = DateTime.now().subtract(const Duration(days: 3));
-      
+
       final data = await _db
           .from('recipes')
           .select('''
@@ -260,7 +261,7 @@ class DatabaseService {
           .gte('created_at', threeDaysAgo.toIso8601String())
           .order('created_at', ascending: false)
           .limit(50);
-      
+
       debugPrint("✅ ${(data as List).length} new recipes loaded");
       return _parseRecipes(data);
     } catch (e) {
@@ -270,12 +271,12 @@ class DatabaseService {
   }
 
   // ==================== FAVORITES MANAGEMENT ====================
-  
+
   /// Add recipe to favorites
   Future<void> addToFavorites(String recipeId) async {
     try {
       final userId = _db.auth.currentUser?.id;
-      
+
       if (userId == null) {
         throw Exception('User not logged in');
       }
@@ -284,7 +285,7 @@ class DatabaseService {
         'user_id': userId,
         'recipe_id': recipeId,
       });
-      
+
       debugPrint("✅ Recipe added to favorites");
     } catch (e) {
       debugPrint("❌ ERROR addToFavorites(): $e");
@@ -296,7 +297,7 @@ class DatabaseService {
   Future<void> removeFromFavorites(String recipeId) async {
     try {
       final userId = _db.auth.currentUser?.id;
-      
+
       if (userId == null) {
         throw Exception('User not logged in');
       }
@@ -306,7 +307,7 @@ class DatabaseService {
           .delete()
           .eq('user_id', userId)
           .eq('recipe_id', recipeId);
-      
+
       debugPrint("✅ Recipe removed from favorites");
     } catch (e) {
       debugPrint("❌ ERROR removeFromFavorites(): $e");
@@ -318,7 +319,7 @@ class DatabaseService {
   Future<bool> isFavorite(String recipeId) async {
     try {
       final userId = _db.auth.currentUser?.id;
-      
+
       if (userId == null) {
         return false;
       }
@@ -329,7 +330,7 @@ class DatabaseService {
           .eq('user_id', userId)
           .eq('recipe_id', recipeId)
           .maybeSingle();
-      
+
       return data != null;
     } catch (e) {
       debugPrint("❌ ERROR isFavorite(): $e");
@@ -338,12 +339,12 @@ class DatabaseService {
   }
 
   // ==================== RATING SYSTEM ====================
-  
+
   /// Retrieves the score given by the current user for a specific recipe.
   /// Returns the score (int) or null if the user has not yet rated it.
   Future<int?> fetchUserRating(String recipeId) async {
     final userId = _authService.getCurrentUserId();
-    
+
     try {
       final Map<String, dynamic>? data = await _db
           .from('ratings')
@@ -356,7 +357,6 @@ class DatabaseService {
         return data['score'] as int;
       }
       return null;
-      
     } catch (e) {
       debugPrint("ERROR fetchUserRating(): $e");
       return null;
@@ -365,11 +365,11 @@ class DatabaseService {
 
   /// Adds/Modifies a user's rating, then updates the recipe's aggregated cache.
   Future<void> rateRecipe({
-    required String recipeId, 
-    required int score
+    required String recipeId,
+    required int score,
   }) async {
     try {
-      final userId = _authService.getCurrentUserId(); 
+      final userId = _authService.getCurrentUserId();
 
       // 1. Insert or Update the rating
       await _db.from('ratings').upsert({
@@ -390,18 +390,24 @@ class DatabaseService {
       for (var row in ratingsData) {
         totalScore += (row['score'] as num).toDouble();
       }
-      
+
       final int newTotalRatings = ratingsData.length;
-      final double newAverage = double.parse((totalScore / newTotalRatings).toStringAsFixed(1));
+      final double newAverage = double.parse(
+        (totalScore / newTotalRatings).toStringAsFixed(1),
+      );
 
       // 3. Update the recipes table
-      await _db.from('recipes').update({
-        'average_rating': newAverage,
-        'total_ratings': newTotalRatings,
-      }).eq('id', recipeId);
+      await _db
+          .from('recipes')
+          .update({
+            'average_rating': newAverage,
+            'total_ratings': newTotalRatings,
+          })
+          .eq('id', recipeId);
 
-      debugPrint("Rating successful. New average: $newAverage ($newTotalRatings votes)");
-
+      debugPrint(
+        "Rating successful. New average: $newAverage ($newTotalRatings votes)",
+      );
     } catch (e) {
       debugPrint("ERROR rateRecipe(): $e");
       rethrow;
@@ -409,7 +415,7 @@ class DatabaseService {
   }
 
   // ==================== HELPER METHODS ====================
-  
+
   List<Recipe> _parseRecipes(dynamic data) {
     try {
       return (data as List<dynamic>)
@@ -420,4 +426,23 @@ class DatabaseService {
       return [];
     }
   }
+
+  // Récupérer tous les tags uniques de toutes les recettes
+  Future<List<String>> fetchAllTags() async {
+  try {
+    final response = await _db
+        .from('tags')
+        .select('name')
+        .order('name');
+
+    if (response.isEmpty) return [];
+
+    return (response as List<dynamic>)
+        .map<String>((tag) => tag['name'] as String)
+        .toList();
+  } catch (e) {
+    debugPrint("❌ ERROR fetchAllTags(): $e");
+    return [];
+  }
+}
 }

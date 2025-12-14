@@ -14,6 +14,8 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final DatabaseService _dbService = DatabaseService();
+  Set<String> _selectedTags = {}; 
+  List<String> _allTags = []; 
   
   // Keys für die Tabs um sie neu zu laden
   final GlobalKey<_AllRecipesTabState> _allRecipesKey = GlobalKey();
@@ -26,8 +28,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
+   _loadAllTags();
   }
 
+Future<void> _loadAllTags() async {
+  final tags = await _dbService.fetchAllTags();
+  setState(() => _allTags = tags);
+}
   @override
   void dispose() {
     _tabController.dispose();
@@ -54,6 +61,81 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     }
   }
 
+  void _showFilterSheet() {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      builder: (_, controller) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Filter by Tags', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  if (_selectedTags.isNotEmpty)
+                    TextButton(
+                      onPressed: () {
+                        setState(() => _selectedTags.clear());
+                        Navigator.pop(context);
+                        _refreshAllTabs();
+                      },
+                      child: const Text('Clear all'),
+                    ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView(
+                controller: controller,
+                padding: const EdgeInsets.all(16),
+                children: _allTags.map((tag) {
+                  final isSelected = _selectedTags.contains(tag);
+                  return CheckboxListTile(
+                    title: Text(tag),
+                    value: isSelected,
+                    activeColor: Colors.orange,
+                    onChanged: (checked) {
+                      setState(() {
+                        if (checked == true) {
+                          _selectedTags.add(tag);
+                        } else {
+                          _selectedTags.remove(tag);
+                        }
+                      });
+                      Navigator.pop(context);
+                      _refreshAllTabs();
+                    },
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -74,35 +156,86 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           ],
         ),
       ),
-      body: TabBarView(
+      body: Column(
+  children: [
+    // Barre de filtres
+    Container(
+      height: 50,
+      color: Colors.grey[100],
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: FilterChip(
+              label: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.filter_list, size: 18),
+                  const SizedBox(width: 4),
+                  Text('Filter${_selectedTags.isNotEmpty ? " (${_selectedTags.length})" : ""}'),
+                ],
+              ),
+              selected: _selectedTags.isNotEmpty,
+              onSelected: (_) => _showFilterSheet(),
+              backgroundColor: Colors.grey[200],
+              selectedColor: Colors.orange[100],
+            ),
+          ),
+          ..._selectedTags.map((tag) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: Chip(
+              label: Text(tag),
+              deleteIcon: const Icon(Icons.close, size: 18),
+              onDeleted: () {
+                setState(() => _selectedTags.remove(tag));
+                _refreshAllTabs();
+              },
+              backgroundColor: Colors.orange[100],
+            ),
+          )),
+        ],
+      ),
+    ),
+    Expanded(
+      child: TabBarView(
         controller: _tabController,
         children: [
           _AllRecipesTab(
             key: _allRecipesKey,
             dbService: _dbService,
+            selectedTags: _selectedTags,
             onChanged: _refreshAllTabs,
           ),
           _NewRecipesTab(
             key: _newRecipesKey,
             dbService: _dbService,
+            selectedTags: _selectedTags,
             onChanged: _refreshAllTabs,
           ),
           _PopularRecipesTab(
             key: _popularRecipesKey,
             dbService: _dbService,
+            selectedTags: _selectedTags,
             onChanged: _refreshAllTabs,
           ),
           _SavedRecipesTab(
             key: _savedRecipesKey,
             dbService: _dbService,
+            selectedTags: _selectedTags,
             onChanged: _refreshAllTabs,
           ),
           _MyRecipesTab(
             key: _myRecipesKey,
             dbService: _dbService,
+            selectedTags: _selectedTags,
             onChanged: _refreshAllTabs,
           ),
         ],
+      ),
+    ),
+  ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _navigateToCreateRecipe,
@@ -117,10 +250,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 class _AllRecipesTab extends StatefulWidget {
   final DatabaseService dbService;
   final VoidCallback? onChanged;
+  final Set<String> selectedTags;
 
   const _AllRecipesTab({
     super.key,
     required this.dbService,
+    required this.selectedTags,
     this.onChanged,
   });
 
@@ -131,6 +266,7 @@ class _AllRecipesTab extends StatefulWidget {
 class _AllRecipesTabState extends State<_AllRecipesTab> with AutomaticKeepAliveClientMixin {
   List<Recipe> _recipes = [];
   bool _isLoading = true;
+  
 
   @override
   bool get wantKeepAlive => true;
@@ -145,13 +281,18 @@ class _AllRecipesTabState extends State<_AllRecipesTab> with AutomaticKeepAliveC
     if (!mounted) return;
     setState(() => _isLoading = true);
     
-    try {
-      final recipes = await widget.dbService.fetchAllRecipes();
-      if (!mounted) return;
-      setState(() {
-        _recipes = recipes;
-        _isLoading = false;
-      });
+ try {
+  final recipes = await widget.dbService.fetchAllRecipes();
+  
+  final filtered = widget.selectedTags.isEmpty
+      ? recipes
+      : recipes.where((r) => r.tags.any((t) => widget.selectedTags.contains(t))).toList();
+  
+  if (!mounted) return;
+  setState(() {
+    _recipes = filtered;
+    _isLoading = false;
+  });
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -193,10 +334,12 @@ class _AllRecipesTabState extends State<_AllRecipesTab> with AutomaticKeepAliveC
 class _NewRecipesTab extends StatefulWidget {
   final DatabaseService dbService;
   final VoidCallback? onChanged;
+  final Set<String> selectedTags;
 
   const _NewRecipesTab({
     super.key,
     required this.dbService,
+    required this.selectedTags,
     this.onChanged,
   });
 
@@ -221,13 +364,18 @@ class _NewRecipesTabState extends State<_NewRecipesTab> with AutomaticKeepAliveC
     if (!mounted) return;
     setState(() => _isLoading = true);
     
-    try {
-      final recipes = await widget.dbService.fetchNewRecipes();
-      if (!mounted) return;
-      setState(() {
-        _recipes = recipes;
-        _isLoading = false;
-      });
+   try {
+  final recipes = await widget.dbService.fetchNewRecipes();
+  
+  final filtered = widget.selectedTags.isEmpty
+      ? recipes
+      : recipes.where((r) => r.tags.any((t) => widget.selectedTags.contains(t))).toList();
+  
+  if (!mounted) return;
+  setState(() {
+    _recipes = filtered;
+    _isLoading = false;
+  });
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -270,10 +418,12 @@ class _NewRecipesTabState extends State<_NewRecipesTab> with AutomaticKeepAliveC
 class _PopularRecipesTab extends StatefulWidget {
   final DatabaseService dbService;
   final VoidCallback? onChanged;
+  final Set<String> selectedTags;
 
   const _PopularRecipesTab({
     super.key,
     required this.dbService,
+    required this.selectedTags,
     this.onChanged,
   });
 
@@ -298,13 +448,18 @@ class _PopularRecipesTabState extends State<_PopularRecipesTab> with AutomaticKe
     if (!mounted) return;
     setState(() => _isLoading = true);
     
-    try {
-      final recipes = await widget.dbService.fetchPopularRecipes();
-      if (!mounted) return;
-      setState(() {
-        _recipes = recipes;
-        _isLoading = false;
-      });
+  try {
+  final recipes = await widget.dbService.fetchPopularRecipes();
+  
+  final filtered = widget.selectedTags.isEmpty
+      ? recipes
+      : recipes.where((r) => r.tags.any((t) => widget.selectedTags.contains(t))).toList();
+  
+  if (!mounted) return;
+  setState(() {
+    _recipes = filtered;
+    _isLoading = false;
+  });
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -348,10 +503,12 @@ class _PopularRecipesTabState extends State<_PopularRecipesTab> with AutomaticKe
 class _SavedRecipesTab extends StatefulWidget {
   final DatabaseService dbService;
   final VoidCallback? onChanged;
+  final Set<String> selectedTags; 
 
   const _SavedRecipesTab({
     super.key,
     required this.dbService,
+    required this.selectedTags,
     this.onChanged,
   });
 
@@ -376,13 +533,18 @@ class _SavedRecipesTabState extends State<_SavedRecipesTab> with AutomaticKeepAl
     if (!mounted) return;
     setState(() => _isLoading = true);
     
-    try {
-      final recipes = await widget.dbService.fetchSavedRecipes();
-      if (!mounted) return;
-      setState(() {
-        _recipes = recipes;
-        _isLoading = false;
-      });
+ try {
+  final recipes = await widget.dbService.fetchSavedRecipes();
+  
+  final filtered = widget.selectedTags.isEmpty
+      ? recipes
+      : recipes.where((r) => r.tags.any((t) => widget.selectedTags.contains(t))).toList();
+  
+  if (!mounted) return;
+  setState(() {
+    _recipes = filtered;
+    _isLoading = false;
+  });
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -424,10 +586,12 @@ class _SavedRecipesTabState extends State<_SavedRecipesTab> with AutomaticKeepAl
 class _MyRecipesTab extends StatefulWidget {
   final DatabaseService dbService;
   final VoidCallback? onChanged;
+  final Set<String> selectedTags;
 
   const _MyRecipesTab({
     super.key,
     required this.dbService,
+    required this.selectedTags,
     this.onChanged,
   });
 
@@ -452,13 +616,18 @@ class _MyRecipesTabState extends State<_MyRecipesTab> with AutomaticKeepAliveCli
     if (!mounted) return;
     setState(() => _isLoading = true);
     
-    try {
-      final recipes = await widget.dbService.fetchMyRecipes();
-      if (!mounted) return;
-      setState(() {
-        _recipes = recipes;
-        _isLoading = false;
-      });
+try {
+  final recipes = await widget.dbService.fetchMyRecipes();
+  
+  final filtered = widget.selectedTags.isEmpty
+      ? recipes
+      : recipes.where((r) => r.tags.any((t) => widget.selectedTags.contains(t))).toList();
+  
+  if (!mounted) return;
+  setState(() {
+    _recipes = filtered;
+    _isLoading = false;
+  });
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);

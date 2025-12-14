@@ -41,9 +41,9 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
 
   Future<void> _toggleFavorite() async {
     if (widget.recipe.id == null || widget.recipe.id!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Recipe ID missing')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Recipe ID missing')));
       return;
     }
 
@@ -60,16 +60,16 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
         await _dbService.addToFavorites(widget.recipe.id!);
         setState(() => _isFavorite = true);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Added to saved 🔖')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Added to saved 🔖')));
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -84,15 +84,12 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
 
     if (rating != null && mounted) {
       try {
-        await _dbService.rateRecipe(
-          recipeId: widget.recipe.id!,
-          score: rating,
-        );
-        
+        await _dbService.rateRecipe(recipeId: widget.recipe.id!, score: rating);
+
         setState(() {
           _userRating = rating;
         });
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -103,9 +100,9 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error: $e')));
         }
       }
     }
@@ -147,7 +144,9 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
                   shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
                 ),
               ),
-              background: widget.recipe.imageUrl != null && widget.recipe.imageUrl!.isNotEmpty
+              background:
+                  widget.recipe.imageUrl != null &&
+                      widget.recipe.imageUrl!.isNotEmpty
                   ? Image.network(
                       widget.recipe.imageUrl!,
                       fit: BoxFit.cover,
@@ -156,7 +155,7 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
                   : _buildPlaceholder(),
             ),
           ),
-          
+
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -165,20 +164,20 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
                 children: [
                   _buildMetadataSection(),
                   const SizedBox(height: 24),
-                  
+
                   if (widget.recipe.tags.isNotEmpty) ...[
                     _buildTagsSection(),
                     const SizedBox(height: 24),
                   ],
-                  
+
                   if (_hasNutritionInfo()) ...[
                     _buildNutritionSection(),
                     const SizedBox(height: 24),
                   ],
-                  
+
                   _buildIngredientsSection(),
                   const SizedBox(height: 24),
-                  
+
                   _buildStepsSection(),
                   const SizedBox(height: 32),
                 ],
@@ -221,24 +220,18 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
                   ),
                   Text(
                     ' / 5',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                   ),
                   const SizedBox(width: 8),
                   Text(
                     '(${widget.recipe.totalRatings} ratings)',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   ),
                 ],
               ),
               const Divider(height: 32),
             ],
-            
+
             // Metadata Row
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -275,10 +268,7 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
           value,
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
-        Text(
-          label,
-          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-        ),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
       ],
     );
   }
@@ -296,10 +286,7 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
           spacing: 8,
           runSpacing: 8,
           children: widget.recipe.tags.map((tag) {
-            return Chip(
-              label: Text(tag),
-              backgroundColor: Colors.orange[100],
-            );
+            return Chip(label: Text(tag), backgroundColor: Colors.orange[100]);
           }).toList(),
         ),
       ],
@@ -323,9 +310,17 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 if (widget.recipe.calories != null)
-                  _buildNutritionItem('Calories', '${widget.recipe.calories}', 'kcal'),
+                  _buildNutritionItem(
+                    'Calories',
+                    '${widget.recipe.calories}',
+                    'kcal',
+                  ),
                 if (widget.recipe.protein != null)
-                  _buildNutritionItem('Protein', '${widget.recipe.protein}', 'g'),
+                  _buildNutritionItem(
+                    'Protein',
+                    '${widget.recipe.protein}',
+                    'g',
+                  ),
                 if (widget.recipe.carbs != null)
                   _buildNutritionItem('Carbs', '${widget.recipe.carbs}', 'g'),
                 if (widget.recipe.fat != null)
@@ -349,10 +344,7 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
             color: Colors.orange,
           ),
         ),
-        Text(
-          unit,
-          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-        ),
+        Text(unit, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
         const SizedBox(height: 4),
         Text(
           label,
@@ -377,8 +369,11 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(
               children: [
-                const Icon(Icons.check_circle_outline, 
-                    color: Colors.orange, size: 20),
+                const Icon(
+                  Icons.check_circle_outline,
+                  color: Colors.orange,
+                  size: 20,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -501,8 +496,12 @@ class _RatingDialogState extends State<_RatingDialog> {
                   });
                 },
                 icon: Icon(
-                  rating <= (_selectedRating ?? 0) ? Icons.star : Icons.star_border,
-                  color: rating <= (_selectedRating ?? 0) ? Colors.amber : Colors.grey,
+                  rating <= (_selectedRating ?? 0)
+                      ? Icons.star
+                      : Icons.star_border,
+                  color: rating <= (_selectedRating ?? 0)
+                      ? Colors.amber
+                      : Colors.grey,
                 ),
               );
             }),
@@ -529,9 +528,7 @@ class _RatingDialogState extends State<_RatingDialog> {
           onPressed: _selectedRating != null
               ? () => Navigator.pop(context, _selectedRating)
               : null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.orange,
-          ),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
           child: const Text('Rate'),
         ),
       ],
