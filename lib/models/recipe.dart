@@ -1,4 +1,12 @@
 
+enum RecipeFilter {
+all,
+newest,
+popular,
+mine, 
+favorite,
+}
+
 
 enum Difficulty { einfach, mittel, schwer }
 

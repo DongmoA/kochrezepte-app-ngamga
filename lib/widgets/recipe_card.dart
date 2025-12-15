@@ -3,15 +3,21 @@ import '../models/recipe.dart';
 import 'common_widgets.dart';
 
 /// A card widget representing a single recipe in a list.
-/// Displays image, title, duration, servings, and tags.
+/// Updated for responsiveness and favorite functionality.
 class RecipeCard extends StatelessWidget {
   final Recipe recipe;
   final VoidCallback onTap;
+  
+  // NEW: State for favorite
+  final bool isFavorite;
+  final VoidCallback onFavoriteToggle;
 
   const RecipeCard({
     super.key, 
     required this.recipe, 
-    required this.onTap
+    required this.onTap,
+    required this.isFavorite,
+    required this.onFavoriteToggle,
   });
 
   @override
@@ -25,17 +31,43 @@ class RecipeCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Recipe Image Section
-            if (recipe.imageUrl != null && recipe.imageUrl!.isNotEmpty)
-              Image.network(
-                recipe.imageUrl!,
-                height: 200,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _buildPlaceholderImage(),
-              )
-            else
-              _buildPlaceholderImage(),
+            // 1. Image Section with Favorite Button
+            Stack(
+              children: [
+                // RESPONSIVENESS FIX: AspectRatio forces a 16:9 ratio
+                // regardless of screen width (Web vs Mobile)
+                AspectRatio(
+                  aspectRatio: 16 / 9, 
+                  child: recipe.imageUrl != null && recipe.imageUrl!.isNotEmpty
+                      ? Image.network(
+                          recipe.imageUrl!,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _buildPlaceholderImage(),
+                        )
+                      : _buildPlaceholderImage(),
+                ),
+
+                // FAVORITE BUTTON: Positioned top-right
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.7), // Semi-transparent background
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: Icon(
+                        isFavorite ? Icons.favorite : Icons.favorite_border,
+                        color: isFavorite ? Colors.red : Colors.grey[800],
+                      ),
+                      onPressed: onFavoriteToggle,
+                    ),
+                  ),
+                ),
+              ],
+            ),
             
             // 2. Recipe Info Section
             Padding(
@@ -53,7 +85,7 @@ class RecipeCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   
-                  // Metadata Row (Duration, Servings, Difficulty)
+                  // Metadata Row
                   Row(
                     children: [
                       InfoChip(
@@ -70,7 +102,7 @@ class RecipeCard extends StatelessWidget {
                     ],
                   ),
                   
-                  // Tags Row (Limited to 3)
+                  // Tags Row
                   if (recipe.tags.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Wrap(
@@ -95,10 +127,8 @@ class RecipeCard extends StatelessWidget {
     );
   }
 
-  /// Builds a grey placeholder when no image is available or fails to load.
   Widget _buildPlaceholderImage() {
     return Container(
-      height: 200,
       color: Colors.grey[300],
       child: const Center(
         child: Icon(Icons.restaurant, size: 60, color: Colors.grey),
@@ -106,4 +136,3 @@ class RecipeCard extends StatelessWidget {
     );
   }
 }
-

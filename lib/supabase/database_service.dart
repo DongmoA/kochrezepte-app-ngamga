@@ -7,6 +7,7 @@ import 'auth_service.dart';
 class DatabaseService {
   final SupabaseClient _db = SupabaseClientManager.client;
   final AuthService _authService = AuthService();
+   String get userId => _authService.getCurrentUserId(); 
 
   /// Create a full recipe with ingredients, steps, tags and nutrition
   Future<String> createRecipe(Recipe recipe) async {
@@ -21,7 +22,9 @@ class DatabaseService {
             'image_url': recipe.imageUrl,
             'duration_minutes': recipe.durationMinutes,
             'servings': recipe.servings,
-            'difficulty': recipe.difficulty.name[0].toUpperCase() + recipe.difficulty.name.substring(1),          })
+            'difficulty': recipe.difficulty.name[0].toUpperCase() + recipe.difficulty.name.substring(1),       
+            'owner_id': userId,
+          })
           .select()
           .single();
 
@@ -127,30 +130,116 @@ class DatabaseService {
       rethrow;
     }
   }
-  
-  Future<List<Recipe>> fetchAllRecipes() async {
+
+  /// Toggles the favorite status of a recipe for the current user.
+  Future<void> toggleFavorite(String recipeId) async {
+
     try {
-      final List<Map<String, dynamic>>  data = await _db
-          .from('recipes')
-          .select('''
-            *,
-            recipe_ingredients(
-              *,
-              ingredients(*)
-            ),
-            recipe_steps(*),
-            recipe_tags(
-              *,
-              tags(*)
-            ),
-            nutrition(*)
-          ''');
-      
-      final recipes = data
-          .map((json) => Recipe.fromJson(json))
-          .toList();
-      
-      return recipes;
+      // Check if it already exists
+      final existing = await _db
+          .from('user_favorites')
+          .select()
+          .eq('user_id', userId)
+          .eq('recipe_id', recipeId)
+          .maybeSingle();
+
+      if (existing != null) {
+        // Remove from favorites
+        await _db
+            .from('user_favorites')
+            .delete()
+            .eq('id', existing['id']);
+      } else {
+        // Add to favorites
+        await _db.from('user_favorites').insert({
+          'user_id': userId,
+          'recipe_id': recipeId,
+        });
+      }
+    } catch (e) {
+      debugPrint("ERROR toggleFavorite: $e");
+      rethrow; // Let the UI know something went wrong
+    }
+  }
+
+  /// Retrieves the list of favorite recipe IDs for the current user.
+  Future<Set<String>> fetchUserFavorites() async {
+    if (userId.isEmpty) return {};
+
+    try {
+      final response = await _db
+          .from('user_favorites')
+          .select('recipe_id')
+          .eq('user_id', userId);
+
+      return (response as List)
+          .map((item) => item['recipe_id'] as String)
+          .toSet();
+    } catch (e) {
+      debugPrint("ERROR fetchUserFavorites(): $e");
+      return {};
+    }
+  }
+  
+  Future<List<Recipe>> fetchAllRecipes({required RecipeFilter filter}) async {
+   if (userId.isEmpty)   return []; // No user logged in
+
+    const String selectQuery = '''
+      *,
+      nutrition(*),
+      recipe_ingredients(*, ingredients(*)),
+      recipe_steps(*),
+      recipe_tags(*, tags(*))
+    ''';
+ 
+    try {
+     List<dynamic> data;
+
+     // Apply filter conditions
+     // first special case : favorite recipes
+     if (filter ==  RecipeFilter.favorite) {
+     
+      final response = await _db
+            .from('user_favorites')
+            .select('recipes($selectQuery)') // Nested select to get full recipe data
+            .eq('user_id', userId)
+            .order('created_at', ascending: false); // Newest first
+      data = response.map((e) => e['recipes']).toList();
+      data.removeWhere((element) => element == null); // Clean nulls
+     } else {
+      // other filters 
+        dynamic query = _db.from('recipes').select(selectQuery);
+
+        switch (filter) {
+          case RecipeFilter.mine:
+           
+            query = query.eq('owner_id', userId); // Filtre par créateur
+            query = query.order('created_at', ascending: false);
+            break;
+
+          case RecipeFilter.newest:
+            // 'new' filter : order by creation date descending
+            query = query.order('created_at', ascending: false);
+            break;
+
+          case RecipeFilter.popular:
+            // 'popular' filter : order by average_rating desc, then total_ratings desc
+            query = query.order('average_rating', ascending: false);
+            query = query.order('total_ratings', ascending: false);
+            break;
+
+          case RecipeFilter.all:
+          default:
+            // 'all' filter : order by title ascending
+            query = query.order('title', ascending: true);
+            break;
+        }
+        
+        data = await query;
+      }
+
+      // Conversion JSON -> Objets Recipe
+      return data.map((json) => Recipe.fromJson(json as Map<String, dynamic>)).toList();
     } catch (e) {
       debugPrint(" ERROR fetchAllRecipes(): $e");
       return [];
@@ -161,7 +250,7 @@ class DatabaseService {
   /// Returns the score (int) or null if the user has not yet rated it.
   Future<int?> fetchUserRating(String recipeId) async {
     // Get the current user's ID using the helper from AuthService
-    final userId = _authService.getCurrentUserId();
+   // final userId = _authService.getCurrentUserId();
 
   
     try {
@@ -191,7 +280,7 @@ class DatabaseService {
   }) async {
     try {
       // Use the helper to ensure the user is logged in
-      final userId = _authService.getCurrentUserId(); 
+    //  final userId = _authService.getCurrentUserId(); 
 
       // 1. Insert or Update the rating in the 'ratings' table (ensures 1 vote per user via upsert)
       await _db.from('ratings').upsert({
