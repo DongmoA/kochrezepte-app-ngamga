@@ -1,28 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:kochrezepte_app/pages/home/home.dart';
-import 'package:kochrezepte_app/supabase/auth_service.dart';
 import 'package:kochrezepte_app/supabase/supabase_client.dart';
 
-Future<void> main()  async {
+import 'pages/Login_signUp/login_page.dart';
+
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SupabaseClientManager.initialize();
-  // Test 
-  final authService = AuthService();
-  await authService.printUsers();
-
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Korezept App',
       debugShowCheckedModeBanner: false,
-      home: HomePage(),
+      title: 'RecipeShare',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFE65100)),
+        useMaterial3: true,
+      ),
+      home: const LoginPage(),
     );
   }
 }
