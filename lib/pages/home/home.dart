@@ -17,9 +17,9 @@ class HomePage extends StatelessWidget {
             onPressed: () async {
               try {
                 await _authService.signOut();
-                print('Déconnexion réussie !');
+                print('Sie wurden erfolgreich aussgeloggt !');
               } catch (e) {
-                print('Erreur : $e');
+                print('Fehler : $e');
               }
             },
           ),

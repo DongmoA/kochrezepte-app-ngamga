@@ -4,7 +4,9 @@ import '../supabase/database_service.dart';
 import '../widgets/recipe_card.dart';
 import 'recipe/recipe_form_page.dart';
 import 'recipe/recipe_detail_page.dart';
-
+import 'package:kochrezepte_app/pages/profile_page.dart';
+import 'package:kochrezepte_app/supabase/auth_service.dart';
+import 'package:kochrezepte_app/pages/Login_signUp/login_page.dart';
 
 
 class RecipeHomePage extends StatefulWidget {
@@ -16,6 +18,7 @@ class RecipeHomePage extends StatefulWidget {
 
 class _RecipeHomePageState extends State<RecipeHomePage> {
   final DatabaseService _dbService = DatabaseService();
+  final AuthService _authService = AuthService();
   List<Recipe> _recipes = [];
   bool _isLoading = true;
   // 1. Store the list of favorite Recipe IDs locally
@@ -145,65 +148,82 @@ Future<void> _onToggleFavorite(Recipe recipe) async {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Recipes'),
-        backgroundColor: Colors.orange,
-         // 1. Filter Chips (Horizontal Navigation)
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(50.0), // Height of the filter bar
-          child: _buildFilterChips(),
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(
+      title: const Text('My Recipes'),
+      backgroundColor: Colors.orange,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.person),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ProfilePage()),
+            );
+          },
         ),
+        IconButton(
+  icon: const Icon(Icons.logout),
+  onPressed: () async {
+    try {
+      await _authService.signOut();
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+      );
+    } catch (e) {
+      print('Erreur : $e');
+    }
+  },
+),
+      ],
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(50.0),
+        child: _buildFilterChips(),
       ),
-      // CHANGE: Use Column instead of directly ListView to fit the filter bar
-      body: Column(
-        children: [
-        
-         // _buildFilterChips(),
-          
-          // 2. Recipe List (Expanded to take remaining space)
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _recipes.isEmpty
-                    ? _buildEmptyState()
-                    : RefreshIndicator(
-                        // Refresh uses the current filter
-                        onRefresh: () => _loadRecipes(filter: _currentFilter),
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: _recipes.length,
-                          itemBuilder: (context, index) {
-                            final recipe = _recipes[index];
-                            
-                            // INTEGRATION: RecipeCard is used here
-                            return RecipeCard(
-                              recipe: recipe,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => RecipeDetailScreen(recipe: recipe),
-                                  ),
-                                );
-                              },
-                              isFavorite: _favoriteIds.contains(recipe.id),
-                              onFavoriteToggle: () => _onToggleFavorite(recipe),
-                            );
-                          },
-                        ),
+    ),
+    body: Column(
+      children: [
+        Expanded(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _recipes.isEmpty
+                  ? _buildEmptyState()
+                  : RefreshIndicator(
+                      onRefresh: () => _loadRecipes(filter: _currentFilter),
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _recipes.length,
+                        itemBuilder: (context, index) {
+                          final recipe = _recipes[index];
+                          
+                          return RecipeCard(
+                            recipe: recipe,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => RecipeDetailScreen(recipe: recipe),
+                                ),
+                              );
+                            },
+                            isFavorite: _favoriteIds.contains(recipe.id),
+                            onFavoriteToggle: () => _onToggleFavorite(recipe),
+                          );
+                        },
                       ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _navigateToCreateRecipe,
-        backgroundColor: Colors.orange,
-        child: const Icon(Icons.add),
-      ),
-    );
-  }
+                    ),
+        ),
+      ],
+    ),
+    floatingActionButton: FloatingActionButton(
+      onPressed: _navigateToCreateRecipe,
+      backgroundColor: Colors.orange,
+      child: const Icon(Icons.add),
+    ),
+  );
+}
 
   /// Displays a friendly message when the list is empty.
   Widget _buildEmptyState() {
