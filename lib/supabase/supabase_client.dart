@@ -12,7 +12,7 @@ class SupabaseClientManager {
       url: supabaseUrl,
       anonKey: supabaseKey,
     );
-     debugPrint("SUPABASE_ANON_KEY = $supabaseKey");
+    
 
 
     client = Supabase.instance.client;

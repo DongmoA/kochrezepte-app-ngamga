@@ -33,6 +33,9 @@ class Recipe {
   final List<RecipeStep> steps;
   final List<String> tags; // list of tag names
 
+  // user who created the recipe
+   final String? ownerEmail; 
+
   Recipe({
     this.id,
     required this.title,
@@ -49,6 +52,7 @@ class Recipe {
     this.ingredients = const [],
     this.steps = const [],
     this.tags = const [],
+    this.ownerEmail,
   });
 
   // Factory method to create a Recipe from JSON (as returned by Supabase)
@@ -82,6 +86,7 @@ class Recipe {
       tags: (json['recipe_tags'] as List<dynamic>?)
           ?.map((e) => e['tags']['name'] as String) 
           .toList() ?? [],
+      ownerEmail: json['owner_email'] as String?,  
     );
   }
 

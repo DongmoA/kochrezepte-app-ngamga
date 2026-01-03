@@ -1,4 +1,5 @@
 
+import 'package:flutter/cupertino.dart';
 import 'package:kochrezepte_app/supabase/supabase_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // Nécessaire pour PostgrestException
 
@@ -50,6 +51,8 @@ class AuthService {
 
  String getCurrentUserId() {
   final id = supaClient.auth.currentUser?.id;
+ 
+ 
   if (id == null) {
     // that means user is not logged in
     throw Exception("User is not authenticated. Cannot perform rating operation.");

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import '../models/recipe.dart';
-import '../../supabase/database_service.dart'; 
+import '../../supabase/database_service.dart';
 
-/// A dedicated widget for displaying and managing recipe ratings.
 class RecipeRatingWidget extends StatefulWidget {
   final Recipe recipe;
+  final Function(double,int) onRaitingSucess;
 
-  const RecipeRatingWidget({super.key, required this.recipe});
+  const RecipeRatingWidget({super.key, required this.recipe, required this.onRaitingSucess});
 
   @override
   State<RecipeRatingWidget> createState() => _RecipeRatingWidgetState();
@@ -14,182 +14,212 @@ class RecipeRatingWidget extends StatefulWidget {
 
 class _RecipeRatingWidgetState extends State<RecipeRatingWidget> {
   final DatabaseService _dbService = DatabaseService();
+  static const Color figmaOrange = Color(0xFFFF5722);
   
-  // State variables for the widget
+  // State variables
   double _averageRating = 0.0;
   int _totalRatings = 0;
-  
-  // User's current rating (can be null if not rated, or 1-5 if rated/in-progress)
   int? _userRating; 
-  // Staging variable for the user's interaction (the score they are about to submit)
   int? _pendingScore; 
-  
   bool _isLoading = true;
+  final TextEditingController _commentController = TextEditingController();
+  List<Map<String, dynamic>> _allReviews = [];
 
   @override
   void initState() {
     super.initState();
+    // initialize with recipe data
     _averageRating = widget.recipe.averageRating;
     _totalRatings = widget.recipe.totalRatings;
-    _loadUserRating();
+    _loadInitialData();
   }
 
-  /// Loads the rating given by the current user for this recipe.
-  Future<void> _loadUserRating() async {
+  Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
     try {
-      final score = await _dbService.fetchUserRating(widget.recipe.id!);
-      if (mounted) {
-        setState(() {
-          _userRating = score;
-          _pendingScore = score;
-          _isLoading = false;
-        });
-      }
+      // Load both user rating and all reviews in parallel
+      await Future.wait([
+        _checkIfUserRated(),
+        _refreshReviews(),
+      ]);
     } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        // Error handling could be more sophisticated, but a simple print is enough for now.
-        debugPrint('Error loading user rating: $e');
-      }
+      debugPrint("Erreur chargement initial: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
-  
-  /// Submits the pending score to the database.
-  Future<void> _submitRating() async {
-    if (_pendingScore == null || _pendingScore! < 1 || _pendingScore! > 5) return;
 
+  // verify if the current user has already rated this recipe
+  Future<void> _checkIfUserRated() async {
+    final rating = await _dbService.fetchUserRating(widget.recipe.id!);
+    if (mounted) setState(() => _userRating = rating);
+  }
+
+  Future<void> _refreshReviews() async {
+    final reviews = await _dbService.fetchAllRatingsForRecipe(widget.recipe.id!);
+    if (mounted) setState(() => _allReviews = reviews);
+  }
+
+  Future<void> _submitRating() async {
+    if (_pendingScore == null) return;
     setState(() => _isLoading = true);
 
     try {
-      // 1. Submit rating to Supabase
-      await _dbService.rateRecipe(
+      // 1. Submit the rating
+      final result = await _dbService.rateRecipe(
         recipeId: widget.recipe.id!,
         score: _pendingScore!,
+        comment: _commentController.text.trim().isEmpty ? null : _commentController.text.trim(),
       );
 
-      // 2. Fetch the new aggregated data from the recipe table (or assume success and update cache)
-      // Since the rateRecipe function updates the cache on the server, we need to read it back.
-      // For simplicity here, we'll assume the Recipe model has fields for averageRating/totalRatings
-      // and update them directly after a slight delay (in a real app, this should be a fresh fetch).
-      // Since we don't have a specific endpoint to fetch *only* the new aggregate stats easily,
-      // we'll rely on the fact that rateRecipe updates the cache and show a success message.
-      
-      // A full re-fetch of the recipe would be safer in a production app.
-      
-      // For now, we update the local state to reflect the user's new rating.
+      // 2. Refresh reviews
+      await _refreshReviews();
+
       if (mounted) {
         setState(() {
-          _userRating = _pendingScore;
+          _userRating = _pendingScore; //  mark as rated
+          _averageRating = result['average']; // update average
+          _totalRatings = result['total'];    // update total
           _isLoading = false;
-          // Note: The average and total ratings might be slightly out of sync 
-          // until the parent page reloads, but the user's rating is correct.
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Bewertung erfolgreich gesendet!')),
-        );
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler beim Senden der Bewertung: $e')),
+          SnackBar(content: Text("Fehler: ${e.toString()}")),
         );
       }
     }
-  }
-
-  /// Builds a single star icon based on the index and the pending score.
-  Widget _buildStar(int index) {
-    // The star is filled if its index (1-5) is less than or equal to the pending score.
-    final bool isSelected = index <= (_pendingScore ?? 0);
-    
-    // Choose color: gold for selected, grey for unselected.
-    final color = isSelected ? Colors.amber : Colors.grey[300];
-
-    return InkWell(
-      onTap: _isLoading ? null : () {
-        setState(() {
-          // Set the pending score to the index of the tapped star.
-          _pendingScore = index;
-        });
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2.0),
-        child: Icon(
-          Icons.star_rounded,
-          size: 32.0,
-          color: color,
-        ),
-      ),
-    );
-  }
-
-  /// Builds the text message/prompt displayed below the stars.
-  Widget _buildPromptMessage() {
-    if (_userRating != null) {
-      // User has already rated
-      return Text(
-        'You have rated this recipe $_userRating stars. '
-        'Average: ${_averageRating.toStringAsFixed(1)} ($_totalRatings votes)',
-        textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 14, color: Colors.green),
-      );
-    } 
-    
-    if (_pendingScore != null && _pendingScore! > 0) {
-      // User has selected a score but not submitted
-      return ElevatedButton(
-        onPressed: _submitRating,
-        style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-        child: const Text('Submit Rating', style: TextStyle(color: Colors.white)),
-      );
-    }
-    
-    // Default message: user is prompted to rate
-    return const Text(
-      'Rate this recipe!',
-      textAlign: TextAlign.center,
-      style: TextStyle(fontSize: 14, color: Colors.grey),
-    );
+    // notifiy parent about new rating
+    widget.onRaitingSucess(_averageRating, _totalRatings);
   }
 
   @override
   Widget build(BuildContext context) {
-    // If the widget is loading data from the database, show a placeholder.
-    if (_isLoading) {
-      return const Center(child: Padding(
-        padding: EdgeInsets.all(16.0),
-        child: CircularProgressIndicator(),
-      ));
-    }
-    
-    // The main layout of the rating system
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24.0),
-      child: Column(
-        children: [
-          // 1. Stars Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(5, (index) => _buildStar(index + 1)),
+    if (_isLoading) return const Center(child: CircularProgressIndicator(color: figmaOrange));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+ 
+        const SizedBox(height: 24),
+        
+        // section to rate the recipe or see existing reviews
+        if (_userRating == null) 
+          _buildVotingForm() 
+        else
+        // List of  existing reviews
+        _buildReviewList(),
+      ],
+    );
+  }
+
+
+
+  Widget _buildVotingForm() {
+    return Column(
+      children: [
+        const Text('Bewerten Sie dieses Rezept', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(5, (index) => _buildStarButton(index + 1)),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _commentController,
+          decoration: InputDecoration(
+            hintText: 'Schreibe einen Kommentar...',
+            filled: true,
+            fillColor: Colors.grey[100],
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
           ),
-          const SizedBox(height: 12),
-          
-          // 2. Prompt/Submission Message
-          _buildPromptMessage(),
-          
-          // 3. Display current average if user hasn't rated yet
-          if (_userRating == null && _totalRatings > 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 8.0),
-              child: Text(
-                'Average: ${_averageRating.toStringAsFixed(1)} (${_totalRatings} votes)',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+          maxLines: 3,
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          height: 45,
+          child: ElevatedButton(
+            onPressed: _pendingScore != null ? _submitRating : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: figmaOrange,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Bewertung abgeben', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ),
+      ],
+    );
+  }
+
+
+  Widget _buildReviewList() {
+    if (_allReviews.isEmpty) return const Center(child: Text("Noch keine Kommentare."));
+
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _allReviews.length,
+      separatorBuilder: (context, index) => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Divider(thickness: 0.5),
+      ),
+      itemBuilder: (context, index) {
+        final review = _allReviews[index];
+        
+        // Format date as DD.MM.YYYY
+        String rawDate = review['created_at'].toString().split('T')[0];
+        List<String> parts = rawDate.split('-');
+        String formattedDate = parts.length == 3 ? "${parts[2]}.${parts[1]}.${parts[0]}" : rawDate;
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // left: User name and comment
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(review['user_name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  const SizedBox(height: 2),
+                  if (review['comment'] != null)
+                    Text(review['comment'], style: const TextStyle(fontSize: 14, color: Colors.black87)),
+                  const SizedBox(height: 4),
+                  Text(formattedDate, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                ],
               ),
             ),
-        ],
+            // right: Star rating
+            Row(
+              children: List.generate(5, (i) => Icon(
+                i < (review['score'] as int) ? Icons.star_rounded : Icons.star_outline_rounded,
+                color: Colors.amber,
+                size: 14, // smaller size for review stars
+              )),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildStarButton(int index) {
+    final bool isSelected = index <= (_pendingScore ?? 0);
+    return IconButton(
+      onPressed: () => setState(() => _pendingScore = index),
+      icon: Icon(
+        isSelected ? Icons.star_rounded : Icons.star_outline_rounded,
+        size: 38,
+        color: isSelected ? Colors.amber : Colors.grey[300],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
   }
 }

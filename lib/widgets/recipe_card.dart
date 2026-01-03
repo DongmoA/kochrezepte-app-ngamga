@@ -20,112 +20,90 @@ class RecipeCard extends StatelessWidget {
     required this.onFavoriteToggle,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      clipBehavior: Clip.antiAlias,
-      elevation: 2,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 1. Image Section with Favorite Button
-            Stack(
-              children: [
-                // RESPONSIVENESS FIX: AspectRatio forces a 16:9 ratio
-                // regardless of screen width (Web vs Mobile)
-                AspectRatio(
-                  aspectRatio: 16 / 9, 
-                  child: recipe.imageUrl != null && recipe.imageUrl!.isNotEmpty
-                      ? Image.network(
-                          recipe.imageUrl!,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _buildPlaceholderImage(),
-                        )
-                      : _buildPlaceholderImage(),
-                ),
-
-                // FAVORITE BUTTON: Positioned top-right
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.7), // Semi-transparent background
-                      shape: BoxShape.circle,
+ @override
+Widget build(BuildContext context) {
+  return Card(
+    margin: EdgeInsets.zero, // Grid handles spacing via mainAxisSpacing/crossAxisSpacing
+    clipBehavior: Clip.antiAlias,
+    elevation: 2,
+    child: InkWell(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Image Section
+          Stack(
+            children: [
+              AspectRatio(
+                aspectRatio: 16 / 9, 
+                child: recipe.imageUrl != null && recipe.imageUrl!.isNotEmpty
+                    ? Image.network(
+                        recipe.imageUrl!,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _buildPlaceholderImage(),
+                      )
+                    : _buildPlaceholderImage(),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha:  0.7),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: Icon(
+                      isFavorite ? Icons.bookmark : Icons.bookmark_border,
+                      color: isFavorite ? Colors.orange : Colors.grey[800],
                     ),
-                    child: IconButton(
-                      icon: Icon(
-                        isFavorite ? Icons.favorite : Icons.favorite_border,
-                        color: isFavorite ? Colors.red : Colors.grey[800],
-                      ),
-                      onPressed: onFavoriteToggle,
-                    ),
+                    onPressed: onFavoriteToggle,
                   ),
                 ),
-              ],
-            ),
-            
-            // 2. Recipe Info Section
-            Padding(
-              padding: const EdgeInsets.all(16),
+              ),
+            ],
+          ),
+          
+          // Info Section
+          Expanded( // Use Expanded to ensure the column takes up remaining space and handles overflow
+            child: Padding(
+              padding: const EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title
                   Text(
                     recipe.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 20,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 8),
                   
-                  // Metadata Row
-                  Row(
+                  // Metadata Row (Simplified for Grid visibility)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
                     children: [
                       InfoChip(
                         icon: Icons.access_time,
-                        label: '${recipe.durationMinutes} Min',
+                        label: '${recipe.durationMinutes} min',
                       ),
-                      const SizedBox(width: 8),
-                      InfoChip(
-                        icon: Icons.restaurant,
-                        label: '${recipe.servings} Portionen',
-                      ),
-                      const SizedBox(width: 8),
                       DifficultyBadge(difficulty: recipe.difficulty),
                     ],
                   ),
-                  
-                  // Tags Row
-                  if (recipe.tags.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: recipe.tags.take(3).map((tag) {
-                        return Chip(
-                          label: Text(tag, style: const TextStyle(fontSize: 12)),
-                          backgroundColor: Colors.orange[100],
-                          padding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.compact,
-                        );
-                      }).toList(),
-                    ),
-                  ],
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildPlaceholderImage() {
     return Container(

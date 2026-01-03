@@ -12,9 +12,9 @@ class DatabaseService {
   /// Create a full recipe with ingredients, steps, tags and nutrition
   Future<String> createRecipe(Recipe recipe) async {
     try {
-      // -----------------------------
+     
       // 1. Insert recipe base data
-      // -----------------------------
+   
       final recipeRes = await _db
           .from('recipes')
           .insert({
@@ -30,9 +30,8 @@ class DatabaseService {
 
       final recipeId = recipeRes['id'] as String;
 
-      // -----------------------------
       // 2. Insert nutrition data
-      // -----------------------------
+      
       if (recipe.calories != null ||
           recipe.protein != null ||
           recipe.carbs != null ||
@@ -46,9 +45,8 @@ class DatabaseService {
         });
       }
 
-      // -----------------------------
       // 3. Insert steps
-      // -----------------------------
+    
       for (final step in recipe.steps) {
         await _db.from('recipe_steps').insert({
           'recipe_id': recipeId,
@@ -57,9 +55,9 @@ class DatabaseService {
         });
       }
 
-      // -----------------------------
+     
       // 4. Insert ingredients
-      // -----------------------------
+     
       for (final ing in recipe.ingredients) {
         // Check if ingredient already exists by name
         final existingIng = await _db
@@ -91,9 +89,9 @@ class DatabaseService {
         });
       }
 
-      // -----------------------------
+     
       // 5. Insert tags
-      // -----------------------------
+    
       for (final tagName in recipe.tags) {
         // Check if tag already exists
         final tag = await _db
@@ -183,6 +181,7 @@ class DatabaseService {
   
   Future<List<Recipe>> fetchAllRecipes({required RecipeFilter filter}) async {
    if (userId.isEmpty)   return []; // No user logged in
+   _authService.getCurrentUserId(); 
 
     const String selectQuery = '''
       *,
@@ -201,19 +200,19 @@ class DatabaseService {
      
       final response = await _db
             .from('user_favorites')
-            .select('recipes($selectQuery)') // Nested select to get full recipe data
+            .select('recipes_with_owner($selectQuery)') // Nested select to get full recipe data
             .eq('user_id', userId)
             .order('created_at', ascending: false); // Newest first
-      data = response.map((e) => e['recipes']).toList();
+      data = response.map((e) => e['recipes_with_owner']).toList();
       data.removeWhere((element) => element == null); // Clean nulls
      } else {
       // other filters 
-        dynamic query = _db.from('recipes').select(selectQuery);
+        dynamic query = _db.from('recipes_with_owner').select(selectQuery);
 
         switch (filter) {
           case RecipeFilter.mine:
            
-            query = query.eq('owner_id', userId); // Filtre par créateur
+            query = query.eq('owner_id', userId); // Filter by current user's recipes
             query = query.order('created_at', ascending: false);
             break;
 
@@ -273,51 +272,91 @@ class DatabaseService {
   }
 
 
-  /// Adds/Modifies a user's rating, then updates the recipe's aggregated cache.
-  Future<void> rateRecipe({
-    required String recipeId, 
-    required int score
-  }) async {
-    try {
-      // Use the helper to ensure the user is logged in
-    //  final userId = _authService.getCurrentUserId(); 
 
-      // 1. Insert or Update the rating in the 'ratings' table (ensures 1 vote per user via upsert)
-      await _db.from('ratings').upsert({
-        'recipe_id': recipeId,
-        'user_id': userId,
-        'score': score,
-      });
+// method to fetch all ratings for a recipe along with user info
+Future<List<Map<String, dynamic>>> fetchAllRatingsForRecipe(String recipeId) async {
+  try {
+    final data = await _db
+        .from('ratings_with_users') 
+        .select('score, comment, created_at, user_email')
+        .eq('recipe_id', recipeId)
+        .order('created_at', ascending: false);
 
-      // 2. Calculate the new average and total (requires reading all ratings for this recipe)
-      final List<Map<String, dynamic>> ratingsData = await _db
-          .from('ratings')
-          .select('score')
-          .eq('recipe_id', recipeId);
-
-      if (ratingsData.isEmpty) return; // Should not happen after the upsert
-
-      double totalScore = 0;
-      for (var row in ratingsData) {
-        totalScore += (row['score'] as num).toDouble();
-      }
-      
-      final int newTotalRatings = ratingsData.length;
-      // Calculate the new average and fix it to one decimal place for storage
-      final double newAverage = double.parse((totalScore / newTotalRatings).toStringAsFixed(1));
-
-      // 3. Update the 'recipes' table (the cache) with the new aggregated values
-      await _db.from('recipes').update({
-        'average_rating': newAverage,
-        'total_ratings': newTotalRatings,
-      }).eq('id', recipeId);
-
-      debugPrint("Rating successful. New average: $newAverage ($newTotalRatings votes)");
-
-    } catch (e) {
-      debugPrint("ERROR rateRecipe(): $e");
-      rethrow;
-    }
+    return (data as List).map((rating) {
+      return {
+        'score': rating['score'],
+        'comment': rating['comment'],
+        'created_at': rating['created_at'],
+        'user_name': rating['user_email'] ?? 'Anonymous', 
+      };
+    }).toList();
+  } catch (e) {
+    debugPrint('ERROR fetchAllRatingsForRecipe(): $e');
+    rethrow;
   }
+}
+
+// method to rate a recipe
+Future<Map<String, dynamic>> rateRecipe({
+  required String recipeId, 
+  required int score,
+  String? comment,
+}) async {
+  try {
+    // Insert new rating
+    await _db.from('ratings').insert({
+      'recipe_id': recipeId,
+      'user_id': userId,
+      'score': score,
+      'comment': comment,
+    });
+
+    // Recalculate average rating and total ratings
+    final List<Map<String, dynamic>> ratingsData = await _db
+        .from('ratings')
+        .select('score')
+        .eq('recipe_id', recipeId);
+
+    double totalScore = 0;
+    for (var row in ratingsData) {
+      totalScore += (row['score'] as num).toDouble();
+    }
+    
+    final int newTotalRatings = ratingsData.length;
+    final double newAverage = double.parse(
+      (totalScore / newTotalRatings).toStringAsFixed(1)
+    );
+
+    // Update recipe with new stats
+    await _db.from('recipes').update({
+      'average_rating': newAverage,
+      'total_ratings': newTotalRatings,
+    }).eq('id', recipeId);
+
+    return {'average': newAverage, 'total': newTotalRatings};
+  } catch (e) {
+    debugPrint("ERROR rateRecipe(): $e");
+    rethrow;
+  }
+}
+
+/// Fetches the average rating and total ratings for a given recipe.
+Future<Map<String, num>> fetchRecipeStats(String recipeId) async {
+  try {
+    final data = await _db
+        .from('recipes')
+        .select('average_rating, total_ratings')
+        .eq('id', recipeId)
+        .single();
+    
+    return {
+      'average': (data['average_rating'] as num?) ?? 0.0,
+      'total': (data['total_ratings'] as num?) ?? 0,
+    };
+  } catch (e) {
+    debugPrint('ERROR fetchRecipeStats(): $e');
+    return {'average': 0.0, 'total': 0};
+  }
+}
 
 }
