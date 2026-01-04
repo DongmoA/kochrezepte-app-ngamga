@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/recipe.dart';
 import 'supabase_client.dart';
@@ -359,4 +360,25 @@ Future<Map<String, num>> fetchRecipeStats(String recipeId) async {
   }
 }
 
+  /// Upload a recipe image to Supabase Storage and return the public URL
+  Future<String?> uploadRecipeImage(Uint8List imageBytes, String fileName) async {
+    try {
+      final fileExt = fileName.split('.').last;
+      final uniqueFileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      final storagePath = '$userId/$uniqueFileName';
+
+      await _db.storage.from('recipe-images').uploadBinary(
+            storagePath,
+            imageBytes,
+            fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+          );
+
+      final String publicUrl = _db.storage.from('recipe-images').getPublicUrl(storagePath);
+
+      return publicUrl;
+    } catch (e) {
+      debugPrint('ERROR uploadRecipeImage(): $e');
+      return null;
+    }
+  }
 }

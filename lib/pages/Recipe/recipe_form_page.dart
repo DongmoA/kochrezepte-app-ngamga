@@ -188,12 +188,29 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
     setState(() => _isSaving = true);
 
     try {
+      // Upload image if local file is selected
+      String? finalImageUrl;
+      
+      if (_selectedImageFile != null) {
+        // Read image bytes
+        final bytes = await _selectedImageFile!.readAsBytes();
+        final fileName = _selectedImageFile!.name;
+        
+        // Upload local image to Supabase Storage
+        finalImageUrl = await _dbService.uploadRecipeImage(bytes, fileName);
+        
+        if (finalImageUrl == null) {
+          throw Exception('Fehler beim Hochladen des Bildes');
+        }
+      } else if (_imageUrlController.text.trim().isNotEmpty) {
+        // Use URL if provided
+        finalImageUrl = _imageUrlController.text.trim();
+      }
+
       final recipe = Recipe(
         id: '', 
         title: _titleController.text.trim(),
-        imageUrl: _imageUrlController.text.trim().isEmpty 
-            ? null 
-            : _imageUrlController.text.trim(),
+        imageUrl: finalImageUrl,
         durationMinutes: int.parse(_durationController.text),
         servings: int.parse(_servingsController.text),
         difficulty: _selectedDifficulty,
@@ -386,124 +403,136 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                   ],
                 ),
               ] else ...[
-                // Show image preview when image is selected
-                Container(
+                // Show image preview when image is selected - SCROLLABLE
+                SizedBox(
                   height: 200,
                   width: double.infinity,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.withOpacity(0.3)),
-                  ),
-                  child: Stack(
-                    children: [
-                      ClipRRect(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Container(
+                      height: 200,
+                      decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
-                        child: SizedBox(
-                          height: 200,
-                          width: double.infinity,
-                          child: _selectedImageFile != null
-                              ? FutureBuilder<Uint8List>(
-                                  future: _selectedImageFile!.readAsBytes(),
-                                  builder: (context, snapshot) {
-                                    if (snapshot.hasData) {
-                                      return Image.memory(
-                                        snapshot.data!,
-                                        height: 200,
-                                        width: double.infinity,
-                                        fit: BoxFit.cover,
-                                      );
-                                    } else if (snapshot.hasError) {
-                                      return Container(
-                                        color: Colors.grey[300],
-                                        child: const Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Icon(Icons.broken_image, size: 50, color: Colors.grey),
-                                            SizedBox(height: 8),
-                                            Text(
-                                              'Bild konnte nicht geladen werden',
-                                              style: TextStyle(color: Colors.grey, fontSize: 12),
+                        border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                      ),
+                      child: Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: _selectedImageFile != null
+                                ? FutureBuilder<Uint8List>(
+                                    future: _selectedImageFile!.readAsBytes(),
+                                    builder: (context, snapshot) {
+                                      if (snapshot.hasData) {
+                                        return Image.memory(
+                                          snapshot.data!,
+                                          height: 200,
+                                          fit: BoxFit.contain,
+                                        );
+                                      } else if (snapshot.hasError) {
+                                        return SizedBox(
+                                          width: MediaQuery.of(context).size.width,
+                                          child: Container(
+                                            color: Colors.grey[300],
+                                            child: const Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                                                SizedBox(height: 8),
+                                                Text(
+                                                  'Bild konnte nicht geladen werden',
+                                                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                                                ),
+                                              ],
                                             ),
-                                          ],
-                                        ),
-                                      );
-                                    } else {
-                                      return Container(
-                                        color: Colors.grey[200],
-                                        child: const Center(
-                                          child: CircularProgressIndicator(
-                                            color: Colors.orange,
+                                          ),
+                                        );
+                                      } else {
+                                        return SizedBox(
+                                          width: MediaQuery.of(context).size.width,
+                                          child: Container(
+                                            color: Colors.grey[200],
+                                            child: const Center(
+                                              child: CircularProgressIndicator(
+                                                color: Colors.orange,
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                  )
+                                : Image.network(
+                                    _imageUrlController.text.trim(),
+                                    height: 200,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return SizedBox(
+                                        width: MediaQuery.of(context).size.width,
+                                        child: Container(
+                                          color: Colors.grey[300],
+                                          child: const Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                                              SizedBox(height: 8),
+                                              Text(
+                                                'Bild konnte nicht geladen werden',
+                                                style: TextStyle(color: Colors.grey, fontSize: 12),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       );
-                                    }
-                                  },
-                                )
-                              : Image.network(
-                                  _imageUrlController.text.trim(),
-                                  height: 200,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      color: Colors.grey[300],
-                                      child: const Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Icon(Icons.broken_image, size: 50, color: Colors.grey),
-                                          SizedBox(height: 8),
-                                          Text(
-                                            'Bild konnte nicht geladen werden',
-                                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                                    },
+                                    loadingBuilder: (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return SizedBox(
+                                        width: MediaQuery.of(context).size.width,
+                                        child: Container(
+                                          color: Colors.grey[200],
+                                          child: const Center(
+                                            child: CircularProgressIndicator(
+                                              color: Colors.orange,
+                                            ),
                                           ),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                  loadingBuilder: (context, child, loadingProgress) {
-                                    if (loadingProgress == null) return child;
-                                    return Container(
-                                      color: Colors.grey[200],
-                                      child: const Center(
-                                        child: CircularProgressIndicator(
-                                          color: Colors.orange,
                                         ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                        ),
-                      ),
-                      // Close button to remove image
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: IconButton(
-                          onPressed: _removeImage,
-                          icon: const Icon(Icons.close),
-                          tooltip: 'Bild entfernen',
-                          style: IconButton.styleFrom(
-                            backgroundColor: Colors.black54,
-                            foregroundColor: Colors.white,
+                                      );
+                                    },
+                                  ),
                           ),
-                        ),
-                      ),
-                      // Change button to select different image
-                      Positioned(
-                        bottom: 8,
-                        right: 8,
-                        child: ElevatedButton.icon(
-                          onPressed: _pickImageFile,
-                          icon: const Icon(Icons.edit, size: 16),
-                          label: const Text('Ändern'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          // Close button to remove image
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: IconButton(
+                              onPressed: _removeImage,
+                              icon: const Icon(Icons.close),
+                              tooltip: 'Bild entfernen',
+                              style: IconButton.styleFrom(
+                                backgroundColor: Colors.black54,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
                           ),
-                        ),
+                          // Change button to select different image
+                          Positioned(
+                            bottom: 8,
+                            right: 8,
+                            child: ElevatedButton.icon(
+                              onPressed: _pickImageFile,
+                              icon: const Icon(Icons.edit, size: 16),
+                              label: const Text('Ändern'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ],
