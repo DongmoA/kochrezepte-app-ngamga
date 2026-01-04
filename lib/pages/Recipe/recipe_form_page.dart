@@ -1,10 +1,14 @@
+// lib/pages/recipe/recipe_form_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/recipe.dart';
 import '../../supabase/database_service.dart';
 
 class RecipeFormPage extends StatefulWidget {
-  const RecipeFormPage({super.key});
+  final Recipe? recipeToEdit;
+
+  const RecipeFormPage({super.key, this.recipeToEdit});
 
   @override
   State<RecipeFormPage> createState() => _RecipeFormPageState();
@@ -13,27 +17,49 @@ class RecipeFormPage extends StatefulWidget {
 class _RecipeFormPageState extends State<RecipeFormPage> {
   final _formKey = GlobalKey<FormState>();
   final DatabaseService _dbService = DatabaseService();
-  
-  // Basic Info Controllers
+
   final _titleController = TextEditingController();
   final _imageUrlController = TextEditingController();
   final _durationController = TextEditingController();
   final _servingsController = TextEditingController();
-  
-  // Nutrition Controllers
+
   final _caloriesController = TextEditingController();
   final _proteinController = TextEditingController();
   final _carbsController = TextEditingController();
   final _fatController = TextEditingController();
-  
+
   Difficulty _selectedDifficulty = Difficulty.mittel;
-  
-  // Dynamic Lists
+
   final List<RecipeIngredient> _ingredients = [];
   final List<RecipeStep> _steps = [];
   final List<String> _tags = [];
-  
+
   bool _isSaving = false;
+
+  bool get _isEdit => widget.recipeToEdit != null;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final r = widget.recipeToEdit;
+    if (r != null) {
+      _titleController.text = r.title;
+      _imageUrlController.text = r.imageUrl ?? '';
+      _durationController.text = r.durationMinutes.toString();
+      _servingsController.text = r.servings.toString();
+      _selectedDifficulty = r.difficulty;
+
+      _caloriesController.text = r.calories?.toString() ?? '';
+      _proteinController.text = r.protein?.toString() ?? '';
+      _carbsController.text = r.carbs?.toString() ?? '';
+      _fatController.text = r.fat?.toString() ?? '';
+
+      _ingredients.addAll(r.ingredients);
+      _steps.addAll(r.steps);
+      _tags.addAll(r.tags);
+    }
+  }
 
   @override
   void dispose() {
@@ -46,6 +72,12 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
     _carbsController.dispose();
     _fatController.dispose();
     super.dispose();
+  }
+
+  double? _parseDouble(String s) {
+    final t = s.trim();
+    if (t.isEmpty) return null;
+    return double.tryParse(t.replaceAll(',', '.'));
   }
 
   Future<void> _saveRecipe() async {
@@ -74,38 +106,40 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
     try {
       final recipe = Recipe(
-        id: '', 
+        id: _isEdit ? widget.recipeToEdit!.id : '',
+        ownerId: _isEdit ? widget.recipeToEdit!.ownerId : null,
         title: _titleController.text.trim(),
-        imageUrl: _imageUrlController.text.trim().isEmpty 
-            ? null 
+        imageUrl: _imageUrlController.text.trim().isEmpty
+            ? null
             : _imageUrlController.text.trim(),
         durationMinutes: int.parse(_durationController.text),
         servings: int.parse(_servingsController.text),
         difficulty: _selectedDifficulty,
-        ingredients: _ingredients,
-        steps: _steps,
-        tags: _tags,
-        calories: _caloriesController.text.isEmpty 
-            ? null 
+        ingredients: List.of(_ingredients),
+        steps: List.of(_steps),
+        tags: List.of(_tags),
+        calories: _caloriesController.text.trim().isEmpty
+            ? null
             : int.parse(_caloriesController.text),
-        protein: _proteinController.text.isEmpty 
-            ? null 
-            : double.parse(_proteinController.text),
-        carbs: _carbsController.text.isEmpty 
-            ? null 
-            : double.parse(_carbsController.text),
-        fat: _fatController.text.isEmpty 
-            ? null 
-            : double.parse(_fatController.text),
+        protein: _parseDouble(_proteinController.text),
+        carbs: _parseDouble(_carbsController.text),
+        fat: _parseDouble(_fatController.text),
       );
 
-      await _dbService.createRecipe(recipe);
+      if (_isEdit) {
+        await _dbService.updateRecipe(recipe);
+      } else {
+        await _dbService.createRecipe(recipe);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Rezept erfolgreich gespeichert!')),
+          SnackBar(
+              content: Text(_isEdit
+                  ? 'Rezept erfolgreich aktualisiert!'
+                  : 'Rezept erfolgreich gespeichert!')),
         );
-        Navigator.pop(context, true); // Return true to indicate success
+        Navigator.pop(context, true); // indique succès
       }
     } catch (e) {
       setState(() => _isSaving = false);
@@ -157,7 +191,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Neues Rezept'),
+        title: Text(_isEdit ? 'Rezept bearbeiten' : 'Neues Rezept'),
         backgroundColor: Colors.orange,
         actions: [
           if (_isSaving)
@@ -179,7 +213,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // BASIC INFO SECTION
             _buildSectionHeader('Grundinformationen'),
             TextFormField(
               controller: _titleController,
@@ -187,10 +220,10 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                 labelText: 'Titel *',
                 border: OutlineInputBorder(),
               ),
-              validator: (v) => v?.isEmpty ?? true ? 'Titel erforderlich' : null,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Titel erforderlich' : null,
             ),
             const SizedBox(height: 16),
-            
             TextFormField(
               controller: _imageUrlController,
               decoration: const InputDecoration(
@@ -199,7 +232,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             Row(
               children: [
                 Expanded(
@@ -211,7 +244,8 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                     ),
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    validator: (v) => v?.isEmpty ?? true ? 'Erforderlich' : null,
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Erforderlich' : null,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -224,13 +258,15 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                     ),
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    validator: (v) => v?.isEmpty ?? true ? 'Erforderlich' : null,
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Erforderlich' : null,
                   ),
                 ),
               ],
             ),
+
             const SizedBox(height: 16),
-            
+
             DropdownButtonFormField<Difficulty>(
               value: _selectedDifficulty,
               decoration: const InputDecoration(
@@ -252,7 +288,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
             const SizedBox(height: 32),
 
-            // NUTRITION SECTION
             _buildSectionHeader('Nährwerte (optional)'),
             Row(
               children: [
@@ -275,13 +310,15 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                       labelText: 'Protein (g)',
                       border: OutlineInputBorder(),
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                   ),
                 ),
               ],
             ),
+
             const SizedBox(height: 16),
-            
+
             Row(
               children: [
                 Expanded(
@@ -291,7 +328,8 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                       labelText: 'Kohlenhydrate (g)',
                       border: OutlineInputBorder(),
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -302,7 +340,8 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                       labelText: 'Fett (g)',
                       border: OutlineInputBorder(),
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                   ),
                 ),
               ],
@@ -310,7 +349,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
             const SizedBox(height: 32),
 
-            // INGREDIENTS SECTION
             _buildSectionHeader('Zutaten'),
             ..._ingredients.asMap().entries.map((entry) {
               return _buildListItem(
@@ -328,7 +366,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
             const SizedBox(height: 32),
 
-            // STEPS SECTION
             _buildSectionHeader('Zubereitungsschritte'),
             ..._steps.map((step) {
               return _buildListItem(
@@ -336,7 +373,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                 onDelete: () {
                   setState(() {
                     _steps.remove(step);
-                    // Renumber steps
                     for (int i = 0; i < _steps.length; i++) {
                       _steps[i] = RecipeStep(
                         stepNumber: i + 1,
@@ -355,7 +391,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
             const SizedBox(height: 32),
 
-            // TAGS SECTION
             _buildSectionHeader('Tags'),
             if (_tags.isNotEmpty)
               Wrap(
@@ -424,7 +459,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
   }
 }
 
-// DIALOGS
+// ---------------- DIALOGS ----------------
 
 class _IngredientDialog extends StatefulWidget {
   final Function(RecipeIngredient) onAdd;
@@ -466,7 +501,8 @@ class _IngredientDialogState extends State<_IngredientDialog> {
           ),
           TextField(
             controller: _unitController,
-            decoration: const InputDecoration(labelText: 'Einheit (z.B. g, ml, Stück)'),
+            decoration:
+                const InputDecoration(labelText: 'Einheit (z.B. g, ml, Stück)'),
           ),
         ],
       ),
@@ -480,7 +516,9 @@ class _IngredientDialogState extends State<_IngredientDialog> {
             if (_nameController.text.isNotEmpty &&
                 _quantityController.text.isNotEmpty &&
                 _unitController.text.isNotEmpty) {
-              final quantity = double.tryParse(_quantityController.text.trim().replaceAll(',', '.'));
+              final quantity = double.tryParse(
+                _quantityController.text.trim().replaceAll(',', '.'),
+              );
               if (quantity != null) {
                 widget.onAdd(RecipeIngredient(
                   name: _nameController.text.trim(),

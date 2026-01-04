@@ -1,23 +1,105 @@
+// lib/pages/recipe/recipe_detail_page.dart
+
 import 'package:flutter/material.dart';
 import '../../models/recipe.dart';
-import '../../widgets/recipe_detail_items.dart'; // Import detail-specific widgets
-import '../../widgets/rating_widget.dart'; // Import the rating widget
+import '../../supabase/database_service.dart';
+import '../../widgets/recipe_detail_items.dart';
+import '../../widgets/rating_widget.dart';
+import 'recipe_form_page.dart';
 
-class RecipeDetailScreen extends StatelessWidget {
+class RecipeDetailScreen extends StatefulWidget {
   final Recipe recipe;
 
   const RecipeDetailScreen({super.key, required this.recipe});
 
   @override
+  State<RecipeDetailScreen> createState() => _RecipeDetailScreenState();
+}
+
+class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
+  final DatabaseService _db = DatabaseService();
+
+  bool get _isMine =>
+      widget.recipe.ownerId != null && widget.recipe.ownerId == _db.userId;
+
+  Future<void> _editRecipe() async {
+    final updated = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RecipeFormPage(recipeToEdit: widget.recipe),
+      ),
+    );
+
+    // Si update OK: on retourne true pour refresh la liste
+    if (updated == true && mounted) {
+      Navigator.pop(context, true);
+    }
+  }
+
+  Future<void> _confirmDelete() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Rezept löschen?"),
+        content: const Text("Diese Aktion kann nicht rückgängig gemacht werden."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Abbrechen"),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.delete),
+            label: const Text("Löschen"),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    try {
+      final id = widget.recipe.id;
+      if (id == null || id.isEmpty) return;
+
+      await _db.deleteRecipe(id);
+
+      if (mounted) {
+        Navigator.pop(context, true); // refresh home
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Fehler: $e")));
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final recipe = widget.recipe;
+
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // 1. App Bar with Image
           SliverAppBar(
             expandedHeight: 300,
             pinned: true,
             backgroundColor: Colors.orange,
+            actions: [
+              if (_isMine) ...[
+                IconButton(
+                  tooltip: "Bearbeiten",
+                  icon: const Icon(Icons.edit),
+                  onPressed: _editRecipe,
+                ),
+                IconButton(
+                  tooltip: "Löschen",
+                  icon: const Icon(Icons.delete),
+                  onPressed: _confirmDelete,
+                ),
+              ],
+            ],
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
                 recipe.title,
@@ -35,43 +117,36 @@ class RecipeDetailScreen extends StatelessWidget {
                   : _buildPlaceholder(),
             ),
           ),
-          
-          // 2. Scrollable Content
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Metadata (Duration, Servings, Difficulty)
-                  _buildMetadataSection(),
+                  _buildMetadataSection(recipe),
                   const SizedBox(height: 24),
-                  
-                 //  Recipe Rating System
+
                   RecipeRatingWidget(recipe: recipe),
 
-                  // Tags
                   if (recipe.tags.isNotEmpty) ...[
-                    _buildTagsSection(),
+                    _buildTagsSection(recipe),
                     const SizedBox(height: 24),
                   ],
-                  
-                  // Nutrition Info
-                  if (_hasNutritionInfo()) ...[
-                    _buildNutritionSection(),
+
+                  if (_hasNutritionInfo(recipe)) ...[
+                    _buildNutritionSection(recipe),
                     const SizedBox(height: 24),
                   ],
-                  
-                  // Ingredients List
+
                   const Text(
                     'Ingredients',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
-                  ...recipe.ingredients.map((ing) => IngredientItem(ingredient: ing)),
+                  ...recipe.ingredients
+                      .map((ing) => IngredientItem(ingredient: ing)),
                   const SizedBox(height: 24),
-                  
-                  // Preparation Steps List
+
                   const Text(
                     'Preparation',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
@@ -88,7 +163,6 @@ class RecipeDetailScreen extends StatelessWidget {
     );
   }
 
-  /// Placeholder for when image is missing
   Widget _buildPlaceholder() {
     return Container(
       color: Colors.grey[300],
@@ -98,8 +172,7 @@ class RecipeDetailScreen extends StatelessWidget {
     );
   }
 
-  /// Section displaying basic stats (Time, Servings, Difficulty)
-  Widget _buildMetadataSection() {
+  Widget _buildMetadataSection(Recipe recipe) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -118,7 +191,7 @@ class RecipeDetailScreen extends StatelessWidget {
             ),
             _buildMetadataItem(
               Icons.signal_cellular_alt,
-              _getDifficultyLabel(),
+              _getDifficultyLabel(recipe),
               'Difficulty',
             ),
           ],
@@ -127,8 +200,6 @@ class RecipeDetailScreen extends StatelessWidget {
     );
   }
 
-  /// Helper for metadata column (Icon + Value + Label)
-  /// Kept local as it's specific to this header design
   Widget _buildMetadataItem(IconData icon, String value, String label) {
     return Column(
       children: [
@@ -146,7 +217,7 @@ class RecipeDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTagsSection() {
+  Widget _buildTagsSection(Recipe recipe) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -169,7 +240,7 @@ class RecipeDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildNutritionSection() {
+  Widget _buildNutritionSection(Recipe recipe) {
     return Card(
       color: Colors.orange[50],
       child: Padding(
@@ -186,13 +257,21 @@ class RecipeDetailScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 if (recipe.calories != null)
-                  NutritionInfoItem(label: 'Calories', value: '${recipe.calories}', unit: 'kcal'),
+                  NutritionInfoItem(
+                      label: 'Calories',
+                      value: '${recipe.calories}',
+                      unit: 'kcal'),
                 if (recipe.protein != null)
-                  NutritionInfoItem(label: 'Protein', value: '${recipe.protein}', unit: 'g'),
+                  NutritionInfoItem(
+                      label: 'Protein',
+                      value: '${recipe.protein}',
+                      unit: 'g'),
                 if (recipe.carbs != null)
-                  NutritionInfoItem(label: 'Carbs', value: '${recipe.carbs}', unit: 'g'),
+                  NutritionInfoItem(
+                      label: 'Carbs', value: '${recipe.carbs}', unit: 'g'),
                 if (recipe.fat != null)
-                  NutritionInfoItem(label: 'Fat', value: '${recipe.fat}', unit: 'g'),
+                  NutritionInfoItem(
+                      label: 'Fat', value: '${recipe.fat}', unit: 'g'),
               ],
             ),
           ],
@@ -201,12 +280,12 @@ class RecipeDetailScreen extends StatelessWidget {
     );
   }
 
-  String _getDifficultyLabel() {
-    // Simple helper to translate enum to string
-    return recipe.difficulty.name[0].toUpperCase() + recipe.difficulty.name.substring(1);
+  String _getDifficultyLabel(Recipe recipe) {
+    return recipe.difficulty.name[0].toUpperCase() +
+        recipe.difficulty.name.substring(1);
   }
 
-  bool _hasNutritionInfo() {
+  bool _hasNutritionInfo(Recipe recipe) {
     return recipe.calories != null ||
         recipe.protein != null ||
         recipe.carbs != null ||

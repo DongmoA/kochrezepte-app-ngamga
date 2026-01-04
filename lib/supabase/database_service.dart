@@ -1,3 +1,5 @@
+// lib/supabase/database_service.dart
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -17,7 +19,6 @@ class DatabaseService {
   /// Create a full recipe with ingredients, steps, tags and nutrition
   Future<String> createRecipe(Recipe recipe) async {
     try {
-      // 1) Insert recipe base data
       final Map<String, dynamic> recipeRes = await _db
           .from('recipes')
           .insert({
@@ -37,7 +38,7 @@ class DatabaseService {
         throw StateError("createRecipe: recipeId vide après insertion.");
       }
 
-      // 2) Insert nutrition data
+      // nutrition
       if (recipe.calories != null ||
           recipe.protein != null ||
           recipe.carbs != null ||
@@ -51,7 +52,7 @@ class DatabaseService {
         });
       }
 
-      // 3) Insert steps
+      // steps
       for (final step in recipe.steps) {
         await _db.from('recipe_steps').insert({
           'recipe_id': recipeId,
@@ -60,7 +61,7 @@ class DatabaseService {
         });
       }
 
-      // 4) Insert ingredients
+      // ingredients
       for (final ing in recipe.ingredients) {
         final Map<String, dynamic>? existingIng = await _db
             .from('ingredients')
@@ -89,7 +90,7 @@ class DatabaseService {
         });
       }
 
-      // 5) Insert tags
+      // tags
       for (final tagName in recipe.tags) {
         final Map<String, dynamic>? tag = await _db
             .from('tags')
@@ -124,7 +125,7 @@ class DatabaseService {
   }
 
   // -----------------------------
-  // UPDATE RECIPE
+  // UPDATE RECIPE (owner only)
   // -----------------------------
   Future<void> updateRecipe(Recipe recipe) async {
     try {
@@ -133,7 +134,7 @@ class DatabaseService {
         throw ArgumentError("updateRecipe: recipe.id est null ou vide.");
       }
 
-      // 1) Update recipe base data
+      // IMPORTANT: ne modifie que si owner_id = userId
       await _db.from('recipes').update({
         'title': recipe.title,
         'image_url': recipe.imageUrl,
@@ -141,11 +142,10 @@ class DatabaseService {
         'servings': recipe.servings,
         'difficulty': recipe.difficulty.name[0].toUpperCase() +
             recipe.difficulty.name.substring(1),
-      }).eq('id', recipeId);
+      }).eq('id', recipeId).eq('owner_id', userId);
 
-      // 2) Update nutrition (delete and re-insert)
+      // nutrition (delete + insert)
       await _db.from('nutrition').delete().eq('recipe_id', recipeId);
-
       if (recipe.calories != null ||
           recipe.protein != null ||
           recipe.carbs != null ||
@@ -159,7 +159,7 @@ class DatabaseService {
         });
       }
 
-      // 3) Update steps (delete and re-insert)
+      // steps (delete + insert)
       await _db.from('recipe_steps').delete().eq('recipe_id', recipeId);
       for (final step in recipe.steps) {
         await _db.from('recipe_steps').insert({
@@ -169,12 +169,8 @@ class DatabaseService {
         });
       }
 
-      // 4) Update ingredients (delete relations and re-insert)
-      await _db
-          .from('recipe_ingredients')
-          .delete()
-          .eq('recipe_id', recipeId);
-
+      // ingredients relations (delete + insert)
+      await _db.from('recipe_ingredients').delete().eq('recipe_id', recipeId);
       for (final ing in recipe.ingredients) {
         final Map<String, dynamic>? existingIng = await _db
             .from('ingredients')
@@ -202,9 +198,8 @@ class DatabaseService {
         });
       }
 
-      // 5) Update tags (delete relations and re-insert)
+      // tags relations (delete + insert)
       await _db.from('recipe_tags').delete().eq('recipe_id', recipeId);
-
       for (final tagName in recipe.tags) {
         final Map<String, dynamic>? tag = await _db
             .from('tags')
@@ -236,10 +231,25 @@ class DatabaseService {
   }
 
   // -----------------------------
-  // DELETE RECIPE
+  // DELETE RECIPE (owner only)
   // -----------------------------
   Future<void> deleteRecipe(String recipeId) async {
     try {
+      // Vérifie ownership
+      final existing = await _db
+          .from('recipes')
+          .select('id, owner_id')
+          .eq('id', recipeId)
+          .maybeSingle();
+
+      if (existing == null) return;
+
+      final owner = _id(existing['owner_id']);
+      if (owner != userId) {
+        throw StateError("Vous ne pouvez supprimer que vos propres recettes.");
+      }
+
+      // Delete related data
       await _db.from('recipe_tags').delete().eq('recipe_id', recipeId);
       await _db.from('recipe_ingredients').delete().eq('recipe_id', recipeId);
       await _db.from('recipe_steps').delete().eq('recipe_id', recipeId);
@@ -247,7 +257,8 @@ class DatabaseService {
       await _db.from('ratings').delete().eq('recipe_id', recipeId);
       await _db.from('user_favorites').delete().eq('recipe_id', recipeId);
 
-      await _db.from('recipes').delete().eq('id', recipeId);
+      // Delete recipe (owner constraint)
+      await _db.from('recipes').delete().eq('id', recipeId).eq('owner_id', userId);
     } catch (e) {
       debugPrint("ERROR deleteRecipe(): $e");
       rethrow;
@@ -353,7 +364,6 @@ class DatabaseService {
     }
   }
 
-  /// Returns the score (int) or null if the user has not yet rated it.
   Future<int?> fetchUserRating(String recipeId) async {
     try {
       final dynamic res = await _db
@@ -376,7 +386,6 @@ class DatabaseService {
     }
   }
 
-  /// Adds/Modifies a user's rating, then updates the recipe's aggregated cache.
   Future<void> rateRecipe({required String recipeId, required int score}) async {
     try {
       await _db.from('ratings').upsert({
