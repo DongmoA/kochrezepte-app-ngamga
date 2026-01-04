@@ -163,9 +163,9 @@ Future<void> _onToggleFavorite(Recipe recipe) async {
                   // Indicateur visuel sous le filtre sélectionné
                   Container(
                     height: 3,
-                    width: 40,
+                    width: 100,
                     decoration: BoxDecoration(
-                      color: isSelected ? Colors.orange : Colors.transparent,
+                      color: isSelected ? Colors.grey : Colors.transparent,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
