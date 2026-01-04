@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:file_picker/file_picker.dart';
-import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io' if (dart.library.html) 'dart:html' as io;
 import '../../models/recipe.dart';
 import '../../supabase/database_service.dart';
 
@@ -38,7 +39,8 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
   bool _isSaving = false;
   bool _hasUnsavedChanges = false;
   
-  File? _selectedImageFile;
+  final ImagePicker _picker = ImagePicker();
+  XFile? _selectedImageFile;  // Store XFile instead of File for cross-platform support
 
   @override
   void initState() {
@@ -62,22 +64,54 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
   Future<void> _pickImageFile() async {
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
+      // Show dialog to choose between gallery and camera
+      final ImageSource? source = await showDialog<ImageSource>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Bild auswählen'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Colors.orange),
+                title: const Text('Galerie / Dateien'),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+              if (!kIsWeb) // Camera not available on web
+                ListTile(
+                  leading: const Icon(Icons.camera_alt, color: Colors.orange),
+                  title: const Text('Kamera'),
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
+                ),
+            ],
+          ),
+        ),
       );
 
-      if (result != null && result.files.single.path != null) {
+      if (source == null) return;
+
+      final XFile? image = await _picker.pickImage(
+        source: source,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
         setState(() {
-          _selectedImageFile = File(result.files.single.path!);
-          _imageUrlController.clear(); // Clear URL if local image is selected
+          _selectedImageFile = image;  // Store XFile directly
+          _imageUrlController.clear();
           _hasUnsavedChanges = true;
         });
       }
     } catch (e) {
+      debugPrint('Error picking image: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler beim Laden des Bildes: $e')),
+          SnackBar(
+            content: Text('Fehler beim Laden des Bildes: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -216,6 +250,21 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
     );
   }
 
+  void _editIngredient(int index, RecipeIngredient currentIngredient) {
+    showDialog(
+      context: context,
+      builder: (context) => _IngredientDialog(
+        initialIngredient: currentIngredient,
+        onAdd: (ingredient) {
+          setState(() {
+            _ingredients[index] = ingredient;
+            _hasUnsavedChanges = true;
+          });
+        },
+      ),
+    );
+  }
+
   void _addStep() {
     showDialog(
       context: context,
@@ -224,6 +273,22 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
         onAdd: (step) {
           setState(() {
             _steps.add(step);
+            _hasUnsavedChanges = true;
+          });
+        },
+      ),
+    );
+  }
+
+  void _editStep(int index, RecipeStep currentStep) {
+    showDialog(
+      context: context,
+      builder: (context) => _StepDialog(
+        stepNumber: currentStep.stepNumber,
+        initialInstruction: currentStep.instruction,
+        onAdd: (step) {
+          setState(() {
+            _steps[index] = step;
             _hasUnsavedChanges = true;
           });
         },
@@ -283,110 +348,163 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
               const SizedBox(height: 16),
               
               // Image Selection Section
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _imageUrlController,
-                      decoration: const InputDecoration(
-                        labelText: 'Bild-URL (optional)',
-                        border: OutlineInputBorder(),
-                        hintText: 'https://example.com/image.jpg',
-                      ),
-                      onChanged: (value) {
-                        if (value.isNotEmpty) {
-                          setState(() => _selectedImageFile = null); // Clear local file if URL is entered
-                        }
-                      },
-                      enabled: _selectedImageFile == null, // Disable if local image is selected
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    children: [
-                      IconButton(
-                        onPressed: _pickImageFile,
-                        icon: const Icon(Icons.folder_open),
-                        tooltip: 'Bild auswählen',
-                        style: IconButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text('Datei', style: TextStyle(fontSize: 10)),
-                    ],
-                  ),
-                ],
-              ),
-              
-              // Image Preview
-              if (_selectedImageFile != null || _imageUrlController.text.trim().isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Stack(
+              if (_selectedImageFile == null && _imageUrlController.text.trim().isEmpty) ...[
+                // Show input fields when no image is selected
+                Row(
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: _selectedImageFile != null
-                          ? Image.file(
-                              _selectedImageFile!,
-                              height: 200,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                            )
-                          : Image.network(
-                              _imageUrlController.text.trim(),
-                              height: 200,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  height: 200,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[300],
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.broken_image, size: 50, color: Colors.grey),
-                                      SizedBox(height: 8),
-                                      Text(
-                                        'Bild konnte nicht geladen werden',
-                                        style: TextStyle(color: Colors.grey),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Container(
-                                  height: 200,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[200],
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Center(
-                                    child: CircularProgressIndicator(),
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: IconButton(
-                        onPressed: _removeImage,
-                        icon: const Icon(Icons.close),
-                        style: IconButton.styleFrom(
-                          backgroundColor: Colors.black54,
-                          foregroundColor: Colors.white,
+                    Expanded(
+                      child: TextFormField(
+                        controller: _imageUrlController,
+                        decoration: const InputDecoration(
+                          labelText: 'Bild-URL (optional)',
+                          border: OutlineInputBorder(),
+                          hintText: 'https://example.com/image.jpg',
                         ),
+                        onChanged: (value) {
+                          if (value.isNotEmpty) {
+                            setState(() => _selectedImageFile = null);
+                          }
+                        },
                       ),
+                    ),
+                    const SizedBox(width: 8),
+                    Column(
+                      children: [
+                        IconButton(
+                          onPressed: _pickImageFile,
+                          icon: const Icon(Icons.add_photo_alternate),
+                          tooltip: 'Bild auswählen',
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text('Bild', style: TextStyle(fontSize: 10)),
+                      ],
                     ),
                   ],
+                ),
+              ] else ...[
+                // Show image preview when image is selected
+                Container(
+                  height: 200,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                  ),
+                  child: Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: SizedBox(
+                          height: 200,
+                          width: double.infinity,
+                          child: _selectedImageFile != null
+                              ? FutureBuilder<Uint8List>(
+                                  future: _selectedImageFile!.readAsBytes(),
+                                  builder: (context, snapshot) {
+                                    if (snapshot.hasData) {
+                                      return Image.memory(
+                                        snapshot.data!,
+                                        height: 200,
+                                        width: double.infinity,
+                                        fit: BoxFit.cover,
+                                      );
+                                    } else if (snapshot.hasError) {
+                                      return Container(
+                                        color: Colors.grey[300],
+                                        child: const Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                                            SizedBox(height: 8),
+                                            Text(
+                                              'Bild konnte nicht geladen werden',
+                                              style: TextStyle(color: Colors.grey, fontSize: 12),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    } else {
+                                      return Container(
+                                        color: Colors.grey[200],
+                                        child: const Center(
+                                          child: CircularProgressIndicator(
+                                            color: Colors.orange,
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                )
+                              : Image.network(
+                                  _imageUrlController.text.trim(),
+                                  height: 200,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      color: Colors.grey[300],
+                                      child: const Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                                          SizedBox(height: 8),
+                                          Text(
+                                            'Bild konnte nicht geladen werden',
+                                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Container(
+                                      color: Colors.grey[200],
+                                      child: const Center(
+                                        child: CircularProgressIndicator(
+                                          color: Colors.orange,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                        ),
+                      ),
+                      // Close button to remove image
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: IconButton(
+                          onPressed: _removeImage,
+                          icon: const Icon(Icons.close),
+                          tooltip: 'Bild entfernen',
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.black54,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                      // Change button to select different image
+                      Positioned(
+                        bottom: 8,
+                        right: 8,
+                        child: ElevatedButton.icon(
+                          onPressed: _pickImageFile,
+                          icon: const Icon(Icons.edit, size: 16),
+                          label: const Text('Ändern'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
               const SizedBox(height: 16),
@@ -521,12 +639,15 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
               // INGREDIENTS SECTION (now optional)
               _buildSectionHeader('Zutaten (optional)'),
               if (_ingredients.isNotEmpty)
-                ..._ingredients.map((ingredient) {
+                ..._ingredients.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final ingredient = entry.value;
                   return _buildListItem(
                     '${ingredient.quantity} ${ingredient.unit} ${ingredient.name}',
+                    onEdit: () => _editIngredient(index, ingredient),
                     onDelete: () {
                       setState(() {
-                        _ingredients.remove(ingredient);
+                        _ingredients.removeAt(index);
                         _hasUnsavedChanges = true;
                       });
                     },
@@ -543,12 +664,15 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
               // STEPS SECTION
               _buildSectionHeader('Zubereitung'),
               if (_steps.isNotEmpty)
-                ..._steps.map((step) {
+                ..._steps.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final step = entry.value;
                   return _buildListItem(
                     'Schritt ${step.stepNumber}: ${step.instruction}',
+                    onEdit: () => _editStep(index, step),
                     onDelete: () {
                       setState(() {
-                        _steps.remove(step);
+                        _steps.removeAt(index);
                         _hasUnsavedChanges = true;
                         // Renumber steps
                         for (int i = 0; i < _steps.length; i++) {
@@ -650,14 +774,26 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
     );
   }
 
-  Widget _buildListItem(String text, {required VoidCallback onDelete}) {
+  Widget _buildListItem(String text, {required VoidCallback onDelete, VoidCallback? onEdit}) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         title: Text(text),
-        trailing: IconButton(
-          icon: const Icon(Icons.delete, color: Colors.red),
-          onPressed: onDelete,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (onEdit != null)
+              IconButton(
+                icon: const Icon(Icons.edit, color: Colors.blue),
+                onPressed: onEdit,
+                tooltip: 'Bearbeiten',
+              ),
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              onPressed: onDelete,
+              tooltip: 'Löschen',
+            ),
+          ],
         ),
       ),
     );
@@ -679,8 +815,12 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
 class _IngredientDialog extends StatefulWidget {
   final Function(RecipeIngredient) onAdd;
+  final RecipeIngredient? initialIngredient;
 
-  const _IngredientDialog({required this.onAdd});
+  const _IngredientDialog({
+    required this.onAdd,
+    this.initialIngredient,
+  });
 
   @override
   State<_IngredientDialog> createState() => _IngredientDialogState();
@@ -692,6 +832,17 @@ class _IngredientDialogState extends State<_IngredientDialog> {
   final _unitController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    // Pre-fill fields if editing
+    if (widget.initialIngredient != null) {
+      _nameController.text = widget.initialIngredient!.name;
+      _quantityController.text = widget.initialIngredient!.quantity.toString();
+      _unitController.text = widget.initialIngredient!.unit;
+    }
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     _quantityController.dispose();
@@ -701,8 +852,10 @@ class _IngredientDialogState extends State<_IngredientDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isEditing = widget.initialIngredient != null;
+    
     return AlertDialog(
-      title: const Text('Zutat hinzufügen'),
+      title: Text(isEditing ? 'Zutat bearbeiten' : 'Zutat hinzufügen'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -710,6 +863,7 @@ class _IngredientDialogState extends State<_IngredientDialog> {
             controller: _nameController,
             decoration: const InputDecoration(labelText: 'Name'),
             textCapitalization: TextCapitalization.words,
+            autofocus: !isEditing,
           ),
           TextField(
             controller: _quantityController,
@@ -754,7 +908,7 @@ class _IngredientDialogState extends State<_IngredientDialog> {
             backgroundColor: Colors.orange,
             foregroundColor: Colors.white,
           ),
-          child: const Text('Hinzufügen'),
+          child: Text(isEditing ? 'Aktualisieren' : 'Hinzufügen'),
         ),
       ],
     );
@@ -764,8 +918,13 @@ class _IngredientDialogState extends State<_IngredientDialog> {
 class _StepDialog extends StatefulWidget {
   final int stepNumber;
   final Function(RecipeStep) onAdd;
+  final String? initialInstruction;
 
-  const _StepDialog({required this.stepNumber, required this.onAdd});
+  const _StepDialog({
+    required this.stepNumber,
+    required this.onAdd,
+    this.initialInstruction,
+  });
 
   @override
   State<_StepDialog> createState() => _StepDialogState();
@@ -775,6 +934,15 @@ class _StepDialogState extends State<_StepDialog> {
   final _instructionController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    // Pre-fill field if editing
+    if (widget.initialInstruction != null) {
+      _instructionController.text = widget.initialInstruction!;
+    }
+  }
+
+  @override
   void dispose() {
     _instructionController.dispose();
     super.dispose();
@@ -782,13 +950,16 @@ class _StepDialogState extends State<_StepDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isEditing = widget.initialInstruction != null;
+    
     return AlertDialog(
-      title: Text('Schritt ${widget.stepNumber}'),
+      title: Text(isEditing ? 'Schritt ${widget.stepNumber} bearbeiten' : 'Schritt ${widget.stepNumber}'),
       content: TextField(
         controller: _instructionController,
         decoration: const InputDecoration(labelText: 'Anweisung'),
         maxLines: 3,
         textCapitalization: TextCapitalization.sentences,
+        autofocus: !isEditing,
       ),
       actions: [
         TextButton(
@@ -809,7 +980,7 @@ class _StepDialogState extends State<_StepDialog> {
             backgroundColor: Colors.orange,
             foregroundColor: Colors.white,
           ),
-          child: const Text('Hinzufügen'),
+          child: Text(isEditing ? 'Aktualisieren' : 'Hinzufügen'),
         ),
       ],
     );

@@ -33,6 +33,15 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
     RecipeFilter.mine: 'Meine',
   };
 
+  // Mapping des icônes pour chaque filtre
+  static const Map<RecipeFilter, IconData> _filterIcons = {
+    RecipeFilter.all: Icons.grid_view,           // Grille pour "Tous"
+    RecipeFilter.favorite: Icons.favorite,       // Coeur pour "Favoris"
+    RecipeFilter.newest: Icons.fiber_new,        // Badge "NEW"
+    RecipeFilter.popular: Icons.trending_up,     // Tendance pour "Populaire"
+    RecipeFilter.mine: Icons.person,             // Personne pour "Mes recettes"
+  };
+
 
   @override
   void initState() {
@@ -119,27 +128,52 @@ Future<void> _onToggleFavorite(Recipe recipe) async {
     return Container(
       height: 50,
       padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        scrollDirection: Axis.horizontal,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemCount: _filterLabels.length,
-        itemBuilder: (context, index) {
-          final filter = _filterLabels.keys.elementAt(index);
+      child: Row(
+        children: _filterLabels.keys.map((filter) {
           final label = _filterLabels[filter]!;
+          final icon = _filterIcons[filter]!;
           final isSelected = filter == _currentFilter;
 
-          return ActionChip(
-            label: Text(label),
-            // Style the chip to show selection
-            backgroundColor: isSelected ? Colors.orange : Colors.grey[200],
-            labelStyle: TextStyle(
-              color: isSelected ? Colors.white : Colors.black87,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          return Expanded(
+            child: InkWell(
+              onTap: () => _onFilterSelected(filter),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 18,
+                        color: Colors.black87,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  // Indicateur visuel sous le filtre sélectionné
+                  Container(
+                    height: 3,
+                    width: 40,
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.orange : Colors.transparent,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            onPressed: () => _onFilterSelected(filter),
           );
-        },
+        }).toList(),
       ),
     );
   }
@@ -148,7 +182,7 @@ Future<void> _onToggleFavorite(Recipe recipe) async {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Recipes'),
+        title: const Text('Meine Rezepte'),
         backgroundColor: Colors.orange,
          // 1. Filter Chips (Horizontal Navigation)
         bottom: PreferredSize(
