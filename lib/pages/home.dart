@@ -4,7 +4,9 @@ import '../supabase/database_service.dart';
 import '../widgets/recipe_card.dart';
 import 'recipe/recipe_form_page.dart';
 import 'recipe/recipe_detail_page.dart';
-
+import 'package:kochrezepte_app/pages/profile_page.dart';
+import 'package:kochrezepte_app/supabase/auth_service.dart';
+import 'package:kochrezepte_app/pages/Login_signUp/login_page.dart';
 
 
 class RecipeHomePage extends StatefulWidget {
@@ -16,6 +18,7 @@ class RecipeHomePage extends StatefulWidget {
 
 class _RecipeHomePageState extends State<RecipeHomePage> {
   final DatabaseService _dbService = DatabaseService();
+  final AuthService _authService = AuthService();
   List<Recipe> _recipes = [];
   bool _isLoading = true;
   // 1. Store the list of favorite Recipe IDs locally
@@ -182,8 +185,33 @@ Future<void> _onToggleFavorite(Recipe recipe) async {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Meine Rezepte'),
+        title: const Text('My Recipes'),
         backgroundColor: Colors.orange,
+        actions: [
+        IconButton(
+          icon: const Icon(Icons.person),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ProfilePage()),
+            );
+          },
+        ),
+        IconButton(
+  icon: const Icon(Icons.logout),
+  onPressed: () async {
+    try {
+      await _authService.signOut();
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+      );
+    } catch (e) {
+      debugPrint('Erreur : $e');
+    }
+  },
+),
+      ],
          // 1. Filter Chips (Horizontal Navigation)
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(50.0), // Height of the filter bar
@@ -203,48 +231,31 @@ Future<void> _onToggleFavorite(Recipe recipe) async {
                 : _recipes.isEmpty
                     ? _buildEmptyState()
                     : RefreshIndicator(
-  onRefresh: () => _loadRecipes(filter: _currentFilter),
-  child: LayoutBuilder(
-    builder: (context, constraints) {
-      // Determine the number of columns based on available width
-      int crossAxisCount = 1;
-      if (constraints.maxWidth > 1200) {
-        crossAxisCount = 3; // Desktop: 3 columns
-      } else if (constraints.maxWidth > 700) {
-        crossAxisCount = 2; // Tablet: 2 columns
-      }
-
-      return GridView.builder(
-        padding: const EdgeInsets.all(16),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: crossAxisCount,
-          crossAxisSpacing: 16, // Horizontal space between cards
-          mainAxisSpacing: 16,  // Vertical space between cards
-          // Adjust aspect ratio: 1.1 for single column (mobile), 
-          // 0.85 for multi-column (desktop/tablet) to keep cards vertical
-          childAspectRatio: crossAxisCount == 1 ? 1.1 : 0.85, 
-        ),
-        itemCount: _recipes.length,
-        itemBuilder: (context, index) {
-          final recipe = _recipes[index];
-          return RecipeCard(
-            recipe: recipe,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => RecipeDetailScreen(recipe: recipe),
-                ),
-              );
-            },
-            isFavorite: _favoriteIds.contains(recipe.id),
-            onFavoriteToggle: () => _onToggleFavorite(recipe),
-          );
-        },
-      );
-    },
-  ),
-)
+                        // Refresh uses the current filter
+                        onRefresh: () => _loadRecipes(filter: _currentFilter),
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _recipes.length,
+                          itemBuilder: (context, index) {
+                            final recipe = _recipes[index];
+                            
+                            // INTEGRATION: RecipeCard is used here
+                            return RecipeCard(
+                              recipe: recipe,
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => RecipeDetailScreen(recipe: recipe),
+                                  ),
+                                );
+                              },
+                              isFavorite: _favoriteIds.contains(recipe.id),
+                              onFavoriteToggle: () => _onToggleFavorite(recipe),
+                            );
+                          },
+                        ),
+                      ),
           ),
         ],
       ),

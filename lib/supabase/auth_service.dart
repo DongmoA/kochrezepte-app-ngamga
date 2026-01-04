@@ -60,4 +60,57 @@ class AuthService {
   return id;
 }
 
+  Future<Map<String, dynamic>?> getProfile() async {
+    try {
+      final userId = supaClient.auth.currentUser?.id;
+      if (userId == null) return null;
+
+      final data = await supaClient
+          .from('profiles')
+          .select()
+          .eq('id', userId)
+          .single();
+      return data;
+    } catch (e) {
+      print('Erreur getProfile: $e');
+      return null;
+    }
+  }
+
+  
+  Future<void> updateProfile({
+    required String username,
+    String? dietPreference,
+  }) async {
+    try {
+      final userId = supaClient.auth.currentUser?.id;
+      if (userId == null) throw Exception('Nicht angemeldet');
+
+      await supaClient.from('profiles').upsert({
+        'id': userId,
+        'username': username,
+        'diet_preference': dietPreference,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      throw Exception('Profil-Update fehlgeschlagen: $e');
+    }
+
+  }
+  
+  Future<void> deleteAccount() async {
+    try {
+      final userId = supaClient.auth.currentUser?.id;
+      if (userId == null) throw Exception('Nicht angemeldet');
+
+      
+      await supaClient.from('profiles').delete().eq('id', userId);
+
+      
+      await supaClient.auth.signOut();
+    } catch (e) {
+      throw Exception('Konto löschen fehlgeschlagen: $e');
+    }
+  }
+
 }
