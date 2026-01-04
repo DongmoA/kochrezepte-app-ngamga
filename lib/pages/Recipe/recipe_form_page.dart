@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io';
 import '../../models/recipe.dart';
 import '../../supabase/database_service.dart';
 
@@ -34,6 +36,60 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
   final List<String> _tags = [];
   
   bool _isSaving = false;
+  bool _hasUnsavedChanges = false;
+  
+  File? _selectedImageFile;
+
+  @override
+  void initState() {
+    super.initState();
+    // Track changes for exit confirmation
+    _titleController.addListener(_markAsChanged);
+    _imageUrlController.addListener(_markAsChanged);
+    _durationController.addListener(_markAsChanged);
+    _servingsController.addListener(_markAsChanged);
+    _caloriesController.addListener(_markAsChanged);
+    _proteinController.addListener(_markAsChanged);
+    _carbsController.addListener(_markAsChanged);
+    _fatController.addListener(_markAsChanged);
+  }
+
+  void _markAsChanged() {
+    if (!_hasUnsavedChanges) {
+      setState(() => _hasUnsavedChanges = true);
+    }
+  }
+
+  Future<void> _pickImageFile() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
+
+      if (result != null && result.files.single.path != null) {
+        setState(() {
+          _selectedImageFile = File(result.files.single.path!);
+          _imageUrlController.clear(); // Clear URL if local image is selected
+          _hasUnsavedChanges = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler beim Laden des Bildes: $e')),
+        );
+      }
+    }
+  }
+
+  void _removeImage() {
+    setState(() {
+      _selectedImageFile = null;
+      _imageUrlController.clear();
+      _hasUnsavedChanges = true;
+    });
+  }
 
   @override
   void dispose() {
@@ -48,6 +104,36 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
     super.dispose();
   }
 
+  Future<bool> _onWillPop() async {
+    if (!_hasUnsavedChanges) return true;
+
+    final shouldPop = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Änderungen verwerfen?'),
+        content: const Text(
+          'Du hast ungespeicherte Änderungen. Möchtest du die Seite wirklich verlassen?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Verwerfen'),
+          ),
+        ],
+      ),
+    );
+
+    return shouldPop ?? false;
+  }
+
   Future<void> _saveRecipe() async {
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -56,12 +142,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
       return;
     }
 
-    if (_ingredients.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Füge mindestens eine Zutat hinzu')),
-      );
-      return;
-    }
+    // Ingredients are now optional, so we removed this check
 
     if (_steps.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -90,20 +171,24 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
             : int.parse(_caloriesController.text),
         protein: _proteinController.text.isEmpty 
             ? null 
-            : double.parse(_proteinController.text),
+            : double.parse(_proteinController.text.replaceAll(',', '.')),
         carbs: _carbsController.text.isEmpty 
             ? null 
-            : double.parse(_carbsController.text),
+            : double.parse(_carbsController.text.replaceAll(',', '.')),
         fat: _fatController.text.isEmpty 
             ? null 
-            : double.parse(_fatController.text),
+            : double.parse(_fatController.text.replaceAll(',', '.')),
       );
 
       await _dbService.createRecipe(recipe);
 
       if (mounted) {
+        setState(() => _hasUnsavedChanges = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Rezept erfolgreich gespeichert!')),
+          const SnackBar(
+            content: Text('Rezept erfolgreich gespeichert!'),
+            backgroundColor: Colors.green,
+          ),
         );
         Navigator.pop(context, true); // Return true to indicate success
       }
@@ -122,7 +207,10 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
       context: context,
       builder: (context) => _IngredientDialog(
         onAdd: (ingredient) {
-          setState(() => _ingredients.add(ingredient));
+          setState(() {
+            _ingredients.add(ingredient);
+            _hasUnsavedChanges = true;
+          });
         },
       ),
     );
@@ -134,7 +222,10 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
       builder: (context) => _StepDialog(
         stepNumber: _steps.length + 1,
         onAdd: (step) {
-          setState(() => _steps.add(step));
+          setState(() {
+            _steps.add(step);
+            _hasUnsavedChanges = true;
+          });
         },
       ),
     );
@@ -146,7 +237,10 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
       builder: (context) => _TagDialog(
         onAdd: (tag) {
           if (!_tags.contains(tag)) {
-            setState(() => _tags.add(tag));
+            setState(() {
+              _tags.add(tag);
+              _hasUnsavedChanges = true;
+            });
           }
         },
       ),
@@ -155,231 +249,388 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Neues Rezept'),
-        backgroundColor: Colors.orange,
-        actions: [
-          if (_isSaving)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(16.0),
-                child: CircularProgressIndicator(color: Colors.white),
-              ),
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.check),
-              onPressed: _saveRecipe,
-            ),
-        ],
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // BASIC INFO SECTION
-            _buildSectionHeader('Grundinformationen'),
-            TextFormField(
-              controller: _titleController,
-              decoration: const InputDecoration(
-                labelText: 'Titel *',
-                border: OutlineInputBorder(),
-              ),
-              validator: (v) => v?.isEmpty ?? true ? 'Titel erforderlich' : null,
-            ),
-            const SizedBox(height: 16),
-            
-            TextFormField(
-              controller: _imageUrlController,
-              decoration: const InputDecoration(
-                labelText: 'Bild-URL (optional)',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _durationController,
-                    decoration: const InputDecoration(
-                      labelText: 'Dauer (Min) *',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    validator: (v) => v?.isEmpty ?? true ? 'Erforderlich' : null,
-                  ),
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (bool didPop) async {
+        if (didPop) return;
+        
+        final shouldPop = await _onWillPop();
+        if (shouldPop && context.mounted) {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Neues Rezept', style: TextStyle(color: Colors.white)),
+          backgroundColor: Colors.orange,
+          iconTheme: const IconThemeData(color: Colors.white),
+        ),
+        body: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // BASIC INFO SECTION
+              _buildSectionHeader('Grundinformationen'),
+              TextFormField(
+                controller: _titleController,
+                decoration: const InputDecoration(
+                  labelText: 'Titel *',
+                  border: OutlineInputBorder(),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextFormField(
-                    controller: _servingsController,
-                    decoration: const InputDecoration(
-                      labelText: 'Portionen *',
-                      border: OutlineInputBorder(),
+                validator: (v) => v?.isEmpty ?? true ? 'Titel erforderlich' : null,
+              ),
+              const SizedBox(height: 16),
+              
+              // Image Selection Section
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _imageUrlController,
+                      decoration: const InputDecoration(
+                        labelText: 'Bild-URL (optional)',
+                        border: OutlineInputBorder(),
+                        hintText: 'https://example.com/image.jpg',
+                      ),
+                      onChanged: (value) {
+                        if (value.isNotEmpty) {
+                          setState(() => _selectedImageFile = null); // Clear local file if URL is entered
+                        }
+                      },
+                      enabled: _selectedImageFile == null, // Disable if local image is selected
                     ),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    validator: (v) => v?.isEmpty ?? true ? 'Erforderlich' : null,
                   ),
+                  const SizedBox(width: 8),
+                  Column(
+                    children: [
+                      IconButton(
+                        onPressed: _pickImageFile,
+                        icon: const Icon(Icons.folder_open),
+                        tooltip: 'Bild auswählen',
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text('Datei', style: TextStyle(fontSize: 10)),
+                    ],
+                  ),
+                ],
+              ),
+              
+              // Image Preview
+              if (_selectedImageFile != null || _imageUrlController.text.trim().isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: _selectedImageFile != null
+                          ? Image.file(
+                              _selectedImageFile!,
+                              height: 200,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            )
+                          : Image.network(
+                              _imageUrlController.text.trim(),
+                              height: 200,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  height: 200,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[300],
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'Bild konnte nicht geladen werden',
+                                        style: TextStyle(color: Colors.grey),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Container(
+                                  height: 200,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[200],
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: IconButton(
+                        onPressed: _removeImage,
+                        icon: const Icon(Icons.close),
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.black54,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
-            ),
-            const SizedBox(height: 16),
-            
-            DropdownButtonFormField<Difficulty>(
-              value: _selectedDifficulty,
-              decoration: const InputDecoration(
-                labelText: 'Schwierigkeit',
-                border: OutlineInputBorder(),
+              const SizedBox(height: 16),
+              
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _durationController,
+                      decoration: const InputDecoration(
+                        labelText: 'Dauer (Min) *',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      validator: (v) => v?.isEmpty ?? true ? 'Erforderlich' : null,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _servingsController,
+                      decoration: const InputDecoration(
+                        labelText: 'Portionen *',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      validator: (v) => v?.isEmpty ?? true ? 'Erforderlich' : null,
+                    ),
+                  ),
+                ],
               ),
-              items: Difficulty.values.map((d) {
-                return DropdownMenuItem(
-                  value: d,
-                  child: Text(_getDifficultyLabel(d)),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _selectedDifficulty = value);
-                }
-              },
-            ),
-
-            const SizedBox(height: 32),
-
-            // NUTRITION SECTION
-            _buildSectionHeader('Nährwerte (optional)'),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _caloriesController,
-                    decoration: const InputDecoration(
-                      labelText: 'Kalorien',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  ),
+              const SizedBox(height: 16),
+              
+              DropdownButtonFormField<Difficulty>(
+                value: _selectedDifficulty,
+                decoration: const InputDecoration(
+                  labelText: 'Schwierigkeit',
+                  border: OutlineInputBorder(),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextFormField(
-                    controller: _proteinController,
-                    decoration: const InputDecoration(
-                      labelText: 'Protein (g)',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _carbsController,
-                    decoration: const InputDecoration(
-                      labelText: 'Kohlenhydrate (g)',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextFormField(
-                    controller: _fatController,
-                    decoration: const InputDecoration(
-                      labelText: 'Fett (g)',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 32),
-
-            // INGREDIENTS SECTION
-            _buildSectionHeader('Zutaten'),
-            ..._ingredients.asMap().entries.map((entry) {
-              return _buildListItem(
-                '${entry.value.quantity} ${entry.value.unit} ${entry.value.name}',
-                onDelete: () {
-                  setState(() => _ingredients.removeAt(entry.key));
-                },
-              );
-            }),
-            OutlinedButton.icon(
-              onPressed: _addIngredient,
-              icon: const Icon(Icons.add),
-              label: const Text('Zutat hinzufügen'),
-            ),
-
-            const SizedBox(height: 32),
-
-            // STEPS SECTION
-            _buildSectionHeader('Zubereitungsschritte'),
-            ..._steps.map((step) {
-              return _buildListItem(
-                'Schritt ${step.stepNumber}: ${step.instruction}',
-                onDelete: () {
-                  setState(() {
-                    _steps.remove(step);
-                    // Renumber steps
-                    for (int i = 0; i < _steps.length; i++) {
-                      _steps[i] = RecipeStep(
-                        stepNumber: i + 1,
-                        instruction: _steps[i].instruction,
-                      );
-                    }
-                  });
-                },
-              );
-            }),
-            OutlinedButton.icon(
-              onPressed: _addStep,
-              icon: const Icon(Icons.add),
-              label: const Text('Schritt hinzufügen'),
-            ),
-
-            const SizedBox(height: 32),
-
-            // TAGS SECTION
-            _buildSectionHeader('Tags'),
-            if (_tags.isNotEmpty)
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _tags.map((tag) {
-                  return Chip(
-                    label: Text(tag),
-                    onDeleted: () {
-                      setState(() => _tags.remove(tag));
-                    },
-                    backgroundColor: Colors.orange[100],
+                items: Difficulty.values.map((d) {
+                  return DropdownMenuItem(
+                    value: d,
+                    child: Text(_getDifficultyLabel(d)),
                   );
                 }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _selectedDifficulty = value;
+                      _hasUnsavedChanges = true;
+                    });
+                  }
+                },
               ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: _addTag,
-              icon: const Icon(Icons.add),
-              label: const Text('Tag hinzufügen'),
-            ),
 
-            const SizedBox(height: 32),
-          ],
+              const SizedBox(height: 32),
+
+              // NUTRITION SECTION
+              _buildSectionHeader('Nährwerte (optional)'),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _caloriesController,
+                      decoration: const InputDecoration(
+                        labelText: 'Kalorien',
+                        border: OutlineInputBorder(),
+                        suffix: Text('kcal'),
+                      ),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly, // Only digits allowed
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _proteinController,
+                      decoration: const InputDecoration(
+                        labelText: 'Protein',
+                        border: OutlineInputBorder(),
+                        suffix: Text('g'),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')), // Numbers with max 2 decimals
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _carbsController,
+                      decoration: const InputDecoration(
+                        labelText: 'Kohlenhydrate',
+                        border: OutlineInputBorder(),
+                        suffix: Text('g'),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')), // Numbers with max 2 decimals
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _fatController,
+                      decoration: const InputDecoration(
+                        labelText: 'Fett',
+                        border: OutlineInputBorder(),
+                        suffix: Text('g'),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')), // Numbers with max 2 decimals
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 32),
+
+              // INGREDIENTS SECTION (now optional)
+              _buildSectionHeader('Zutaten (optional)'),
+              if (_ingredients.isNotEmpty)
+                ..._ingredients.map((ingredient) {
+                  return _buildListItem(
+                    '${ingredient.quantity} ${ingredient.unit} ${ingredient.name}',
+                    onDelete: () {
+                      setState(() {
+                        _ingredients.remove(ingredient);
+                        _hasUnsavedChanges = true;
+                      });
+                    },
+                  );
+                }),
+              OutlinedButton.icon(
+                onPressed: _addIngredient,
+                icon: const Icon(Icons.add),
+                label: const Text('Zutat hinzufügen'),
+              ),
+
+              const SizedBox(height: 32),
+
+              // STEPS SECTION
+              _buildSectionHeader('Zubereitung'),
+              if (_steps.isNotEmpty)
+                ..._steps.map((step) {
+                  return _buildListItem(
+                    'Schritt ${step.stepNumber}: ${step.instruction}',
+                    onDelete: () {
+                      setState(() {
+                        _steps.remove(step);
+                        _hasUnsavedChanges = true;
+                        // Renumber steps
+                        for (int i = 0; i < _steps.length; i++) {
+                          _steps[i] = RecipeStep(
+                            stepNumber: i + 1,
+                            instruction: _steps[i].instruction,
+                          );
+                        }
+                      });
+                    },
+                  );
+                }),
+              OutlinedButton.icon(
+                onPressed: _addStep,
+                icon: const Icon(Icons.add),
+                label: const Text('Schritt hinzufügen'),
+              ),
+
+              const SizedBox(height: 32),
+
+              // TAGS SECTION
+              _buildSectionHeader('Tags'),
+              if (_tags.isNotEmpty)
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _tags.map((tag) {
+                    return Chip(
+                      label: Text(tag),
+                      onDeleted: () {
+                        setState(() {
+                          _tags.remove(tag);
+                          _hasUnsavedChanges = true;
+                        });
+                      },
+                      backgroundColor: Colors.orange[100],
+                    );
+                  }).toList(),
+                ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _addTag,
+                icon: const Icon(Icons.add),
+                label: const Text('Tag hinzufügen'),
+              ),
+
+              const SizedBox(height: 32),
+
+              // SAVE BUTTON (improved)
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: _isSaving ? null : _saveRecipe,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.grey[300],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  icon: _isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(Icons.save),
+                  label: Text(
+                    _isSaving ? 'Wird gespeichert...' : 'Rezept speichern',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
@@ -458,11 +709,15 @@ class _IngredientDialogState extends State<_IngredientDialog> {
           TextField(
             controller: _nameController,
             decoration: const InputDecoration(labelText: 'Name'),
+            textCapitalization: TextCapitalization.words,
           ),
           TextField(
             controller: _quantityController,
             decoration: const InputDecoration(labelText: 'Menge'),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+            ],
           ),
           TextField(
             controller: _unitController,
@@ -495,6 +750,10 @@ class _IngredientDialogState extends State<_IngredientDialog> {
               }
             }
           },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.orange,
+            foregroundColor: Colors.white,
+          ),
           child: const Text('Hinzufügen'),
         ),
       ],
@@ -529,6 +788,7 @@ class _StepDialogState extends State<_StepDialog> {
         controller: _instructionController,
         decoration: const InputDecoration(labelText: 'Anweisung'),
         maxLines: 3,
+        textCapitalization: TextCapitalization.sentences,
       ),
       actions: [
         TextButton(
@@ -545,6 +805,10 @@ class _StepDialogState extends State<_StepDialog> {
               Navigator.pop(context);
             }
           },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.orange,
+            foregroundColor: Colors.white,
+          ),
           child: const Text('Hinzufügen'),
         ),
       ],
@@ -577,6 +841,7 @@ class _TagDialogState extends State<_TagDialog> {
       content: TextField(
         controller: _tagController,
         decoration: const InputDecoration(labelText: 'Tag-Name'),
+        textCapitalization: TextCapitalization.words,
       ),
       actions: [
         TextButton(
@@ -590,6 +855,10 @@ class _TagDialogState extends State<_TagDialog> {
               Navigator.pop(context);
             }
           },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.orange,
+            foregroundColor: Colors.white,
+          ),
           child: const Text('Hinzufügen'),
         ),
       ],
