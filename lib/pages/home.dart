@@ -181,13 +181,13 @@ Future<void> _onToggleFavorite(Recipe recipe) async {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Recipes'),
-        backgroundColor: Colors.orange,
-        actions: [
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(
+      title: const Text('My Recipes'),
+      backgroundColor: Colors.orange,
+      actions: [
         IconButton(
           icon: const Icon(Icons.person),
           onPressed: () {
@@ -196,6 +196,7 @@ Future<void> _onToggleFavorite(Recipe recipe) async {
               MaterialPageRoute(builder: (context) => const ProfilePage()),
             );
           },
+
         ),
         IconButton(
   icon: const Icon(Icons.logout),
@@ -207,19 +208,18 @@ Future<void> _onToggleFavorite(Recipe recipe) async {
         MaterialPageRoute(builder: (context) => const LoginPage()),
       );
     } catch (e) {
-      debugPrint('Erreur : $e');
+      print('Erreur : $e');
     }
   },
 ),
       ],
-         // 1. Filter Chips (Horizontal Navigation)
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(50.0), // Height of the filter bar
-          child: _buildFilterChips(),
-        ),
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(50.0),
+        child: _buildFilterChips(),
       ),
-      // CHANGE: Use Column instead of directly ListView to fit the filter bar
-      body: Column(
+    ),
+    // CHANGE: Use Column instead of directly ListView to fit the filter bar
+    body: Column(
         children: [
         
          // _buildFilterChips(),
@@ -231,31 +231,48 @@ Future<void> _onToggleFavorite(Recipe recipe) async {
                 : _recipes.isEmpty
                     ? _buildEmptyState()
                     : RefreshIndicator(
-                        // Refresh uses the current filter
-                        onRefresh: () => _loadRecipes(filter: _currentFilter),
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: _recipes.length,
-                          itemBuilder: (context, index) {
-                            final recipe = _recipes[index];
-                            
-                            // INTEGRATION: RecipeCard is used here
-                            return RecipeCard(
-                              recipe: recipe,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => RecipeDetailScreen(recipe: recipe),
-                                  ),
-                                );
-                              },
-                              isFavorite: _favoriteIds.contains(recipe.id),
-                              onFavoriteToggle: () => _onToggleFavorite(recipe),
-                            );
-                          },
-                        ),
-                      ),
+  onRefresh: () => _loadRecipes(filter: _currentFilter),
+  child: LayoutBuilder(
+    builder: (context, constraints) {
+      // Determine the number of columns based on available width
+      int crossAxisCount = 1;
+      if (constraints.maxWidth > 1200) {
+        crossAxisCount = 3; // Desktop: 3 columns
+      } else if (constraints.maxWidth > 700) {
+        crossAxisCount = 2; // Tablet: 2 columns
+      }
+
+      return GridView.builder(
+        padding: const EdgeInsets.all(16),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossAxisCount,
+          crossAxisSpacing: 16, // Horizontal space between cards
+          mainAxisSpacing: 16,  // Vertical space between cards
+          // Adjust aspect ratio: 1.1 for single column (mobile), 
+          // 0.85 for multi-column (desktop/tablet) to keep cards vertical
+          childAspectRatio: crossAxisCount == 1 ? 1.1 : 0.85, 
+        ),
+        itemCount: _recipes.length,
+        itemBuilder: (context, index) {
+          final recipe = _recipes[index];
+          return RecipeCard(
+            recipe: recipe,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => RecipeDetailScreen(recipe: recipe),
+                ),
+              );
+            },
+            isFavorite: _favoriteIds.contains(recipe.id),
+            onFavoriteToggle: () => _onToggleFavorite(recipe),
+          );
+        },
+      );
+    },
+  ),
+)
           ),
         ],
       ),
@@ -266,6 +283,7 @@ Future<void> _onToggleFavorite(Recipe recipe) async {
       ),
     );
   }
+
 
   /// Displays a friendly message when the list is empty.
   Widget _buildEmptyState() {
