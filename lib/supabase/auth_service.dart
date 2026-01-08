@@ -1,5 +1,4 @@
 
-import 'package:flutter/cupertino.dart';
 import 'package:kochrezepte_app/supabase/supabase_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // Nécessaire pour PostgrestException
 
