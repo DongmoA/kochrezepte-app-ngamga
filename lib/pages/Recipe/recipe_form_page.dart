@@ -1,13 +1,18 @@
+// lib/pages/recipe/recipe_form_page.dart
+
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io' if (dart.library.html) 'dart:html' as io;
+
 import '../../models/recipe.dart';
 import '../../supabase/database_service.dart';
 
 class RecipeFormPage extends StatefulWidget {
-  const RecipeFormPage({super.key});
+  final Recipe? recipeToEdit;
+
+  const RecipeFormPage({super.key, this.recipeToEdit});
 
   @override
   State<RecipeFormPage> createState() => _RecipeFormPageState();
@@ -16,35 +21,35 @@ class RecipeFormPage extends StatefulWidget {
 class _RecipeFormPageState extends State<RecipeFormPage> {
   final _formKey = GlobalKey<FormState>();
   final DatabaseService _dbService = DatabaseService();
-  
-  // Basic Info Controllers
+
   final _titleController = TextEditingController();
   final _imageUrlController = TextEditingController();
   final _durationController = TextEditingController();
   final _servingsController = TextEditingController();
-  
-  // Nutrition Controllers
+
   final _caloriesController = TextEditingController();
   final _proteinController = TextEditingController();
   final _carbsController = TextEditingController();
   final _fatController = TextEditingController();
-  
+
   Difficulty _selectedDifficulty = Difficulty.mittel;
-  
-  // Dynamic Lists
+
   final List<RecipeIngredient> _ingredients = [];
   final List<RecipeStep> _steps = [];
   final List<String> _tags = [];
-  
+
   bool _isSaving = false;
   bool _hasUnsavedChanges = false;
-  
+
   final ImagePicker _picker = ImagePicker();
-  XFile? _selectedImageFile;  // Store XFile instead of File for cross-platform support
+  XFile? _selectedImageFile;
+
+  bool get _isEdit => widget.recipeToEdit != null;
 
   @override
   void initState() {
     super.initState();
+
     // Track changes for exit confirmation
     _titleController.addListener(_markAsChanged);
     _imageUrlController.addListener(_markAsChanged);
@@ -54,6 +59,28 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
     _proteinController.addListener(_markAsChanged);
     _carbsController.addListener(_markAsChanged);
     _fatController.addListener(_markAsChanged);
+
+    // Prefill on edit
+    final r = widget.recipeToEdit;
+    if (r != null) {
+      _titleController.text = r.title;
+      _imageUrlController.text = r.imageUrl ?? '';
+      _durationController.text = r.durationMinutes.toString();
+      _servingsController.text = r.servings.toString();
+      _selectedDifficulty = r.difficulty;
+
+      _caloriesController.text = r.calories?.toString() ?? '';
+      _proteinController.text = r.protein?.toString() ?? '';
+      _carbsController.text = r.carbs?.toString() ?? '';
+      _fatController.text = r.fat?.toString() ?? '';
+
+      _ingredients.addAll(r.ingredients);
+      _steps.addAll(r.steps);
+      _tags.addAll(r.tags);
+
+      // On edit, we start "clean" (no unsaved changes yet)
+      _hasUnsavedChanges = false;
+    }
   }
 
   void _markAsChanged() {
@@ -62,80 +89,10 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
     }
   }
 
-  Future<void> _pickImageFile() async {
-    try {
-      // Show dialog to choose between gallery and camera
-      final ImageSource? source = await showDialog<ImageSource>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Bild auswählen'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.photo_library, color: Colors.orange),
-                title: const Text('Galerie / Dateien'),
-                onTap: () => Navigator.pop(context, ImageSource.gallery),
-              ),
-              if (!kIsWeb) // Camera not available on web
-                ListTile(
-                  leading: const Icon(Icons.camera_alt, color: Colors.orange),
-                  title: const Text('Kamera'),
-                  onTap: () => Navigator.pop(context, ImageSource.camera),
-                ),
-            ],
-          ),
-        ),
-      );
-
-      if (source == null) return;
-
-      final XFile? image = await _picker.pickImage(
-        source: source,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
-      );
-
-      if (image != null) {
-        setState(() {
-          _selectedImageFile = image;  // Store XFile directly
-          _imageUrlController.clear();
-          _hasUnsavedChanges = true;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error picking image: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Fehler beim Laden des Bildes: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  void _removeImage() {
-    setState(() {
-      _selectedImageFile = null;
-      _imageUrlController.clear();
-      _hasUnsavedChanges = true;
-    });
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _imageUrlController.dispose();
-    _durationController.dispose();
-    _servingsController.dispose();
-    _caloriesController.dispose();
-    _proteinController.dispose();
-    _carbsController.dispose();
-    _fatController.dispose();
-    super.dispose();
+  double? _parseDouble(String s) {
+    final t = s.trim();
+    if (t.isEmpty) return null;
+    return double.tryParse(t.replaceAll(',', '.'));
   }
 
   Future<bool> _onWillPop() async {
@@ -168,6 +125,68 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
     return shouldPop ?? false;
   }
 
+  Future<void> _pickImageFile() async {
+    try {
+      final ImageSource? source = await showDialog<ImageSource>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Bild auswählen'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Colors.orange),
+                title: const Text('Galerie / Dateien'),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+              if (!kIsWeb)
+                ListTile(
+                  leading: const Icon(Icons.camera_alt, color: Colors.orange),
+                  title: const Text('Kamera'),
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
+                ),
+            ],
+          ),
+        ),
+      );
+
+      if (source == null) return;
+
+      final XFile? image = await _picker.pickImage(
+        source: source,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        setState(() {
+          _selectedImageFile = image;
+          _imageUrlController.clear();
+          _hasUnsavedChanges = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Fehler beim Laden des Bildes: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _removeImage() {
+    setState(() {
+      _selectedImageFile = null;
+      _imageUrlController.clear();
+      _hasUnsavedChanges = true;
+    });
+  }
+
   Future<void> _saveRecipe() async {
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -175,8 +194,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
       );
       return;
     }
-
-    // Ingredients are now optional, so we removed this check
 
     if (_steps.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -188,64 +205,68 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
     setState(() => _isSaving = true);
 
     try {
-      // Upload image if local file is selected
       String? finalImageUrl;
-      
+
+      // 1) If local file selected -> upload
       if (_selectedImageFile != null) {
-        // Read image bytes
         final bytes = await _selectedImageFile!.readAsBytes();
         final fileName = _selectedImageFile!.name;
-        
-        // Upload local image to Supabase Storage
+
         finalImageUrl = await _dbService.uploadRecipeImage(bytes, fileName);
-        
         if (finalImageUrl == null) {
           throw Exception('Fehler beim Hochladen des Bildes');
         }
-      } else if (_imageUrlController.text.trim().isNotEmpty) {
-        // Use URL if provided
+      }
+      // 2) else if URL typed -> use it
+      else if (_imageUrlController.text.trim().isNotEmpty) {
         finalImageUrl = _imageUrlController.text.trim();
       }
+      // 3) else null
 
       final recipe = Recipe(
-        id: '', 
+        id: _isEdit ? widget.recipeToEdit!.id : '',
+        ownerId: _isEdit ? widget.recipeToEdit!.ownerId : null,
         title: _titleController.text.trim(),
         imageUrl: finalImageUrl,
         durationMinutes: int.parse(_durationController.text),
         servings: int.parse(_servingsController.text),
         difficulty: _selectedDifficulty,
-        ingredients: _ingredients,
-        steps: _steps,
-        tags: _tags,
-        calories: _caloriesController.text.isEmpty 
-            ? null 
+        ingredients: List.of(_ingredients),
+        steps: List.of(_steps),
+        tags: List.of(_tags),
+        calories: _caloriesController.text.trim().isEmpty
+            ? null
             : int.parse(_caloriesController.text),
-        protein: _proteinController.text.isEmpty 
-            ? null 
-            : double.parse(_proteinController.text.replaceAll(',', '.')),
-        carbs: _carbsController.text.isEmpty 
-            ? null 
-            : double.parse(_carbsController.text.replaceAll(',', '.')),
-        fat: _fatController.text.isEmpty 
-            ? null 
-            : double.parse(_fatController.text.replaceAll(',', '.')),
+        protein: _parseDouble(_proteinController.text),
+        carbs: _parseDouble(_carbsController.text),
+        fat: _parseDouble(_fatController.text),
       );
 
-      await _dbService.createRecipe(recipe);
+      if (_isEdit) {
+        await _dbService.updateRecipe(recipe);
+      } else {
+        await _dbService.createRecipe(recipe);
+      }
 
       if (mounted) {
-        setState(() => _hasUnsavedChanges = false);
+        setState(() {
+          _hasUnsavedChanges = false;
+          _isSaving = false;
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Rezept erfolgreich gespeichert!'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Text(_isEdit
+                ? 'Rezept erfolgreich aktualisiert!'
+                : 'Rezept erfolgreich gespeichert!'),
           ),
         );
-        Navigator.pop(context, true); // Return true to indicate success
+
+        Navigator.pop(context, true);
       }
     } catch (e) {
-      setState(() => _isSaving = false);
       if (mounted) {
+        setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Fehler beim Speichern: $e')),
         );
@@ -335,7 +356,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
       canPop: false,
       onPopInvoked: (bool didPop) async {
         if (didPop) return;
-        
+
         final shouldPop = await _onWillPop();
         if (shouldPop && context.mounted) {
           Navigator.pop(context);
@@ -343,7 +364,8 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Neues Rezept', style: TextStyle(color: Colors.white)),
+          title: Text(_isEdit ? 'Rezept bearbeiten' : 'Neues Rezept',
+              style: const TextStyle(color: Colors.white)),
           backgroundColor: Colors.orange,
           iconTheme: const IconThemeData(color: Colors.white),
         ),
@@ -352,21 +374,23 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              // BASIC INFO SECTION
               _buildSectionHeader('Grundinformationen'),
+
               TextFormField(
                 controller: _titleController,
                 decoration: const InputDecoration(
                   labelText: 'Titel *',
                   border: OutlineInputBorder(),
                 ),
-                validator: (v) => v?.isEmpty ?? true ? 'Titel erforderlich' : null,
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Titel erforderlich' : null,
               ),
+
               const SizedBox(height: 16),
-              
-              // Image Selection Section
-              if (_selectedImageFile == null && _imageUrlController.text.trim().isEmpty) ...[
-                // Show input fields when no image is selected
+
+              // Image section: URL OR local file
+              if (_selectedImageFile == null &&
+                  _imageUrlController.text.trim().isEmpty) ...[
                 Row(
                   children: [
                     Expanded(
@@ -403,7 +427,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                   ],
                 ),
               ] else ...[
-                // Show image preview when image is selected - SCROLLABLE
                 SizedBox(
                   height: 200,
                   width: double.infinity,
@@ -435,13 +458,17 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                                           child: Container(
                                             color: Colors.grey[300],
                                             child: const Column(
-                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
                                               children: [
-                                                Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                                                Icon(Icons.broken_image,
+                                                    size: 50, color: Colors.grey),
                                                 SizedBox(height: 8),
                                                 Text(
                                                   'Bild konnte nicht geladen werden',
-                                                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                                                  style: TextStyle(
+                                                      color: Colors.grey,
+                                                      fontSize: 12),
                                                 ),
                                               ],
                                             ),
@@ -466,26 +493,32 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                                     _imageUrlController.text.trim(),
                                     height: 200,
                                     fit: BoxFit.contain,
-                                    errorBuilder: (context, error, stackTrace) {
+                                    errorBuilder:
+                                        (context, error, stackTrace) {
                                       return SizedBox(
                                         width: MediaQuery.of(context).size.width,
                                         child: Container(
                                           color: Colors.grey[300],
                                           child: const Column(
-                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
                                             children: [
-                                              Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                                              Icon(Icons.broken_image,
+                                                  size: 50, color: Colors.grey),
                                               SizedBox(height: 8),
                                               Text(
                                                 'Bild konnte nicht geladen werden',
-                                                style: TextStyle(color: Colors.grey, fontSize: 12),
+                                                style: TextStyle(
+                                                    color: Colors.grey,
+                                                    fontSize: 12),
                                               ),
                                             ],
                                           ),
                                         ),
                                       );
                                     },
-                                    loadingBuilder: (context, child, loadingProgress) {
+                                    loadingBuilder:
+                                        (context, child, loadingProgress) {
                                       if (loadingProgress == null) return child;
                                       return SizedBox(
                                         width: MediaQuery.of(context).size.width,
@@ -501,7 +534,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                                     },
                                   ),
                           ),
-                          // Close button to remove image
                           Positioned(
                             top: 8,
                             right: 8,
@@ -515,7 +547,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                               ),
                             ),
                           ),
-                          // Change button to select different image
                           Positioned(
                             bottom: 8,
                             right: 8,
@@ -526,7 +557,8 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.orange,
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
                               ),
                             ),
                           ),
@@ -536,8 +568,9 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                   ),
                 ),
               ],
+
               const SizedBox(height: 16),
-              
+
               Row(
                 children: [
                   Expanded(
@@ -549,7 +582,8 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                       ),
                       keyboardType: TextInputType.number,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      validator: (v) => v?.isEmpty ?? true ? 'Erforderlich' : null,
+                      validator: (v) =>
+                          (v == null || v.trim().isEmpty) ? 'Erforderlich' : null,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -562,13 +596,15 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                       ),
                       keyboardType: TextInputType.number,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      validator: (v) => v?.isEmpty ?? true ? 'Erforderlich' : null,
+                      validator: (v) =>
+                          (v == null || v.trim().isEmpty) ? 'Erforderlich' : null,
                     ),
                   ),
                 ],
               ),
+
               const SizedBox(height: 16),
-              
+
               DropdownButtonFormField<Difficulty>(
                 value: _selectedDifficulty,
                 decoration: const InputDecoration(
@@ -593,7 +629,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
               const SizedBox(height: 32),
 
-              // NUTRITION SECTION
               _buildSectionHeader('Nährwerte (optional)'),
               Row(
                 children: [
@@ -606,9 +641,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                         suffix: Text('kcal'),
                       ),
                       keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly, // Only digits allowed
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -620,15 +653,15 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                         border: OutlineInputBorder(),
                         suffix: Text('g'),
                       ),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')), // Numbers with max 2 decimals
-                      ],
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                     ),
                   ),
                 ],
               ),
+
               const SizedBox(height: 16),
+
               Row(
                 children: [
                   Expanded(
@@ -639,10 +672,8 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                         border: OutlineInputBorder(),
                         suffix: Text('g'),
                       ),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')), // Numbers with max 2 decimals
-                      ],
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -654,10 +685,8 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                         border: OutlineInputBorder(),
                         suffix: Text('g'),
                       ),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')), // Numbers with max 2 decimals
-                      ],
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                     ),
                   ),
                 ],
@@ -665,7 +694,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
               const SizedBox(height: 32),
 
-              // INGREDIENTS SECTION (now optional)
               _buildSectionHeader('Zutaten (optional)'),
               if (_ingredients.isNotEmpty)
                 ..._ingredients.asMap().entries.map((entry) {
@@ -690,7 +718,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
               const SizedBox(height: 32),
 
-              // STEPS SECTION
               _buildSectionHeader('Zubereitung'),
               if (_steps.isNotEmpty)
                 ..._steps.asMap().entries.map((entry) {
@@ -703,7 +730,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                       setState(() {
                         _steps.removeAt(index);
                         _hasUnsavedChanges = true;
-                        // Renumber steps
                         for (int i = 0; i < _steps.length; i++) {
                           _steps[i] = RecipeStep(
                             stepNumber: i + 1,
@@ -722,7 +748,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
               const SizedBox(height: 32),
 
-              // TAGS SECTION
               _buildSectionHeader('Tags'),
               if (_tags.isNotEmpty)
                 Wrap(
@@ -750,7 +775,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
               const SizedBox(height: 32),
 
-              // SAVE BUTTON (improved)
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -776,7 +800,8 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                       : const Icon(Icons.save),
                   label: Text(
                     _isSaving ? 'Wird gespeichert...' : 'Rezept speichern',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -803,7 +828,11 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
     );
   }
 
-  Widget _buildListItem(String text, {required VoidCallback onDelete, VoidCallback? onEdit}) {
+  Widget _buildListItem(
+    String text, {
+    required VoidCallback onDelete,
+    VoidCallback? onEdit,
+  }) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
@@ -838,9 +867,22 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
         return 'Schwer';
     }
   }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _imageUrlController.dispose();
+    _durationController.dispose();
+    _servingsController.dispose();
+    _caloriesController.dispose();
+    _proteinController.dispose();
+    _carbsController.dispose();
+    _fatController.dispose();
+    super.dispose();
+  }
 }
 
-// DIALOGS
+// ---------------- DIALOGS ----------------
 
 class _IngredientDialog extends StatefulWidget {
   final Function(RecipeIngredient) onAdd;
@@ -863,10 +905,10 @@ class _IngredientDialogState extends State<_IngredientDialog> {
   @override
   void initState() {
     super.initState();
-    // Pre-fill fields if editing
     if (widget.initialIngredient != null) {
       _nameController.text = widget.initialIngredient!.name;
-      _quantityController.text = widget.initialIngredient!.quantity.toString();
+      _quantityController.text =
+          widget.initialIngredient!.quantity.toString();
       _unitController.text = widget.initialIngredient!.unit;
     }
   }
@@ -882,7 +924,7 @@ class _IngredientDialogState extends State<_IngredientDialog> {
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.initialIngredient != null;
-    
+
     return AlertDialog(
       title: Text(isEditing ? 'Zutat bearbeiten' : 'Zutat hinzufügen'),
       content: Column(
@@ -904,7 +946,8 @@ class _IngredientDialogState extends State<_IngredientDialog> {
           ),
           TextField(
             controller: _unitController,
-            decoration: const InputDecoration(labelText: 'Einheit (z.B. g, ml, Stück)'),
+            decoration:
+                const InputDecoration(labelText: 'Einheit (z.B. g, ml, Stück)'),
           ),
         ],
       ),
@@ -918,7 +961,9 @@ class _IngredientDialogState extends State<_IngredientDialog> {
             if (_nameController.text.isNotEmpty &&
                 _quantityController.text.isNotEmpty &&
                 _unitController.text.isNotEmpty) {
-              final quantity = double.tryParse(_quantityController.text.trim().replaceAll(',', '.'));
+              final quantity = double.tryParse(
+                _quantityController.text.trim().replaceAll(',', '.'),
+              );
               if (quantity != null) {
                 widget.onAdd(RecipeIngredient(
                   name: _nameController.text.trim(),
@@ -965,7 +1010,6 @@ class _StepDialogState extends State<_StepDialog> {
   @override
   void initState() {
     super.initState();
-    // Pre-fill field if editing
     if (widget.initialInstruction != null) {
       _instructionController.text = widget.initialInstruction!;
     }
@@ -980,9 +1024,11 @@ class _StepDialogState extends State<_StepDialog> {
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.initialInstruction != null;
-    
+
     return AlertDialog(
-      title: Text(isEditing ? 'Schritt ${widget.stepNumber} bearbeiten' : 'Schritt ${widget.stepNumber}'),
+      title: Text(isEditing
+          ? 'Schritt ${widget.stepNumber} bearbeiten'
+          : 'Schritt ${widget.stepNumber}'),
       content: TextField(
         controller: _instructionController,
         decoration: const InputDecoration(labelText: 'Anweisung'),

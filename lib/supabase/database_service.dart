@@ -1,38 +1,47 @@
-import 'package:flutter/widgets.dart';
+// lib/supabase/database_service.dart
+
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../models/recipe.dart';
-import 'supabase_client.dart';
 import 'auth_service.dart';
+import 'supabase_client.dart';
 
 class DatabaseService {
   final SupabaseClient _db = SupabaseClientManager.client;
   final AuthService _authService = AuthService();
-   String get userId => _authService.getCurrentUserId(); 
 
-  /// Create a full recipe with ingredients, steps, tags and nutrition
+  String get userId => _authService.getCurrentUserId();
+
+  // Helper: convertit n'importe quel id Supabase (int/uuid) en String
+  String _id(dynamic value) => value?.toString() ?? '';
+
+  // ----------------------------------------
+  // CREATE RECIPE
+  // ----------------------------------------
   Future<String> createRecipe(Recipe recipe) async {
     try {
-     
-      // 1. Insert recipe base data
-   
-      final recipeRes = await _db
+      final Map<String, dynamic> recipeRes = await _db
           .from('recipes')
           .insert({
             'title': recipe.title,
             'image_url': recipe.imageUrl,
             'duration_minutes': recipe.durationMinutes,
             'servings': recipe.servings,
-            'difficulty': recipe.difficulty.name[0].toUpperCase() + recipe.difficulty.name.substring(1),       
+            'difficulty': recipe.difficulty.name[0].toUpperCase() +
+                recipe.difficulty.name.substring(1),
             'owner_id': userId,
           })
           .select()
           .single();
 
-      final recipeId = recipeRes['id'] as String;
+      final String recipeId = _id(recipeRes['id']);
+      if (recipeId.isEmpty) {
+        throw StateError("createRecipe: recipeId vide après insertion.");
+      }
 
-      // 2. Insert nutrition data
-      
+      // nutrition
       if (recipe.calories != null ||
           recipe.protein != null ||
           recipe.carbs != null ||
@@ -46,8 +55,7 @@ class DatabaseService {
         });
       }
 
-      // 3. Insert steps
-    
+      // steps
       for (final step in recipe.steps) {
         await _db.from('recipe_steps').insert({
           'recipe_id': recipeId,
@@ -56,32 +64,27 @@ class DatabaseService {
         });
       }
 
-     
-      // 4. Insert ingredients
-     
+      // ingredients
       for (final ing in recipe.ingredients) {
-        // Check if ingredient already exists by name
-        final existingIng = await _db
+        final Map<String, dynamic>? existingIng = await _db
             .from('ingredients')
-            .select()
+            .select('id')
             .eq('name', ing.name)
             .maybeSingle();
 
         String ingredientId;
 
         if (existingIng == null) {
-          // Create ingredient if not found
-          final newIng = await _db
+          final Map<String, dynamic> newIng = await _db
               .from('ingredients')
               .insert({'name': ing.name})
-              .select()
+              .select('id')
               .single();
-          ingredientId = newIng['id'] as String;
+          ingredientId = _id(newIng['id']);
         } else {
-          ingredientId = existingIng['id'] as String;
+          ingredientId = _id(existingIng['id']);
         }
 
-        // Insert recipe-ingredient relation
         await _db.from('recipe_ingredients').insert({
           'recipe_id': recipeId,
           'ingredient_id': ingredientId,
@@ -90,66 +93,192 @@ class DatabaseService {
         });
       }
 
-     
-      // 5. Insert tags
-    
+      // tags
       for (final tagName in recipe.tags) {
-        // Check if tag already exists
-        final tag = await _db
+        final Map<String, dynamic>? tag = await _db
             .from('tags')
-            .select()
+            .select('id')
             .eq('name', tagName)
             .maybeSingle();
 
         String tagId;
 
         if (tag == null) {
-          // Create tag if needed
-          final newTag = await _db
+          final Map<String, dynamic> newTag = await _db
               .from('tags')
               .insert({'name': tagName})
-              .select()
+              .select('id')
               .single();
-          tagId = newTag['id'];
+          tagId = _id(newTag['id']);
         } else {
-          tagId = tag['id'];
+          tagId = _id(tag['id']);
         }
 
-        // Insert recipe-tag relation
         await _db.from('recipe_tags').insert({
           'recipe_id': recipeId,
           'tag_id': tagId,
         });
       }
 
-      return recipeId; // Success
-
+      return recipeId;
     } catch (e) {
-      debugPrint(" ERROR createRecipe(): $e");
+      debugPrint("ERROR createRecipe(): $e");
       rethrow;
     }
   }
 
-  /// Toggles the favorite status of a recipe for the current user.
-  Future<void> toggleFavorite(String recipeId) async {
-
+  // ----------------------------------------
+  // UPDATE RECIPE (owner only)
+  // ----------------------------------------
+  Future<void> updateRecipe(Recipe recipe) async {
     try {
-      // Check if it already exists
+      final String recipeId = _id(recipe.id);
+      if (recipeId.isEmpty) {
+        throw ArgumentError("updateRecipe: recipe.id est null ou vide.");
+      }
+
+      await _db.from('recipes').update({
+        'title': recipe.title,
+        'image_url': recipe.imageUrl,
+        'duration_minutes': recipe.durationMinutes,
+        'servings': recipe.servings,
+        'difficulty': recipe.difficulty.name[0].toUpperCase() +
+            recipe.difficulty.name.substring(1),
+      }).eq('id', recipeId).eq('owner_id', userId);
+
+      // nutrition (delete + insert)
+      await _db.from('nutrition').delete().eq('recipe_id', recipeId);
+      if (recipe.calories != null ||
+          recipe.protein != null ||
+          recipe.carbs != null ||
+          recipe.fat != null) {
+        await _db.from('nutrition').insert({
+          'recipe_id': recipeId,
+          'calories': recipe.calories,
+          'protein_g': recipe.protein,
+          'carbs_g': recipe.carbs,
+          'fat_g': recipe.fat,
+        });
+      }
+
+      // steps (delete + insert)
+      await _db.from('recipe_steps').delete().eq('recipe_id', recipeId);
+      for (final step in recipe.steps) {
+        await _db.from('recipe_steps').insert({
+          'recipe_id': recipeId,
+          'step_number': step.stepNumber,
+          'instruction': step.instruction,
+        });
+      }
+
+      // ingredients relations (delete + insert)
+      await _db.from('recipe_ingredients').delete().eq('recipe_id', recipeId);
+      for (final ing in recipe.ingredients) {
+        final Map<String, dynamic>? existingIng = await _db
+            .from('ingredients')
+            .select('id')
+            .eq('name', ing.name)
+            .maybeSingle();
+
+        String ingredientId;
+        if (existingIng == null) {
+          final Map<String, dynamic> newIng = await _db
+              .from('ingredients')
+              .insert({'name': ing.name})
+              .select('id')
+              .single();
+          ingredientId = _id(newIng['id']);
+        } else {
+          ingredientId = _id(existingIng['id']);
+        }
+
+        await _db.from('recipe_ingredients').insert({
+          'recipe_id': recipeId,
+          'ingredient_id': ingredientId,
+          'quantity': ing.quantity,
+          'unit': ing.unit,
+        });
+      }
+
+      // tags relations (delete + insert)
+      await _db.from('recipe_tags').delete().eq('recipe_id', recipeId);
+      for (final tagName in recipe.tags) {
+        final Map<String, dynamic>? tag = await _db
+            .from('tags')
+            .select('id')
+            .eq('name', tagName)
+            .maybeSingle();
+
+        String tagId;
+        if (tag == null) {
+          final Map<String, dynamic> newTag = await _db
+              .from('tags')
+              .insert({'name': tagName})
+              .select('id')
+              .single();
+          tagId = _id(newTag['id']);
+        } else {
+          tagId = _id(tag['id']);
+        }
+
+        await _db.from('recipe_tags').insert({
+          'recipe_id': recipeId,
+          'tag_id': tagId,
+        });
+      }
+    } catch (e) {
+      debugPrint("ERROR updateRecipe(): $e");
+      rethrow;
+    }
+  }
+
+  // ----------------------------------------
+  // DELETE RECIPE (owner only)
+  // ----------------------------------------
+  Future<void> deleteRecipe(String recipeId) async {
+    try {
       final existing = await _db
+          .from('recipes')
+          .select('id, owner_id')
+          .eq('id', recipeId)
+          .maybeSingle();
+
+      if (existing == null) return;
+
+      final owner = _id(existing['owner_id']);
+      if (owner != userId) {
+        throw StateError("Vous ne pouvez supprimer que vos propres recettes.");
+      }
+
+      await _db.from('recipe_tags').delete().eq('recipe_id', recipeId);
+      await _db.from('recipe_ingredients').delete().eq('recipe_id', recipeId);
+      await _db.from('recipe_steps').delete().eq('recipe_id', recipeId);
+      await _db.from('nutrition').delete().eq('recipe_id', recipeId);
+      await _db.from('ratings').delete().eq('recipe_id', recipeId);
+      await _db.from('user_favorites').delete().eq('recipe_id', recipeId);
+
+      await _db.from('recipes').delete().eq('id', recipeId).eq('owner_id', userId);
+    } catch (e) {
+      debugPrint("ERROR deleteRecipe(): $e");
+      rethrow;
+    }
+  }
+
+  // ----------------------------------------
+  // FAVORITES
+  // ----------------------------------------
+  Future<void> toggleFavorite(String recipeId) async {
+    try {
+      final Map<String, dynamic>? existing = await _db
           .from('user_favorites')
-          .select()
+          .select('id')
           .eq('user_id', userId)
           .eq('recipe_id', recipeId)
           .maybeSingle();
 
       if (existing != null) {
-        // Remove from favorites
-        await _db
-            .from('user_favorites')
-            .delete()
-            .eq('id', existing['id']);
+        await _db.from('user_favorites').delete().eq('id', existing['id']);
       } else {
-        // Add to favorites
         await _db.from('user_favorites').insert({
           'user_id': userId,
           'recipe_id': recipeId,
@@ -157,32 +286,32 @@ class DatabaseService {
       }
     } catch (e) {
       debugPrint("ERROR toggleFavorite: $e");
-      rethrow; // Let the UI know something went wrong
+      rethrow;
     }
   }
 
-  /// Retrieves the list of favorite recipe IDs for the current user.
   Future<Set<String>> fetchUserFavorites() async {
     if (userId.isEmpty) return {};
 
     try {
-      final response = await _db
+      final dynamic response = await _db
           .from('user_favorites')
           .select('recipe_id')
           .eq('user_id', userId);
 
-      return (response as List)
-          .map((item) => item['recipe_id'] as String)
-          .toSet();
+      final List list = response as List;
+      return list.map((item) => _id(item['recipe_id'])).toSet();
     } catch (e) {
       debugPrint("ERROR fetchUserFavorites(): $e");
       return {};
     }
   }
-  
+
+  // ----------------------------------------
+  // FETCH RECIPES (filters)
+  // ----------------------------------------
   Future<List<Recipe>> fetchAllRecipes({required RecipeFilter filter}) async {
-   if (userId.isEmpty)   return []; // No user logged in
-   _authService.getCurrentUserId(); 
+    if (userId.isEmpty) return [];
 
     const String selectQuery = '''
       *,
@@ -191,176 +320,173 @@ class DatabaseService {
       recipe_steps(*),
       recipe_tags(*, tags(*))
     ''';
- 
-    try {
-     List<dynamic> data;
 
-     // Apply filter conditions
-     // first special case : favorite recipes
-     if (filter ==  RecipeFilter.favorite) {
-     
-      final response = await _db
+    try {
+      List<dynamic> data;
+
+      if (filter == RecipeFilter.favorite) {
+        final dynamic response = await _db
             .from('user_favorites')
-            .select('recipes_with_owner($selectQuery)') // Nested select to get full recipe data
+            .select('recipes($selectQuery)')
             .eq('user_id', userId)
-            .order('created_at', ascending: false); // Newest first
-      data = response.map((e) => e['recipes_with_owner']).toList();
-      data.removeWhere((element) => element == null); // Clean nulls
-     } else {
-      // other filters 
+            .order('created_at', ascending: false);
+
+        final List list = response as List;
+        data = list.map((e) => e['recipes']).where((x) => x != null).toList();
+      } else {
+        // NOTE: recipes_with_owner est utilisé dans ton UI (ownerEmail).
+        // Si cette vue n’existe pas, dis-moi et on passe en join sur profiles/users.
         dynamic query = _db.from('recipes_with_owner').select(selectQuery);
 
         switch (filter) {
           case RecipeFilter.mine:
-           
-            query = query.eq('owner_id', userId); // Filter by current user's recipes
-            query = query.order('created_at', ascending: false);
+            query = query.eq('owner_id', userId).order('created_at', ascending: false);
             break;
-
           case RecipeFilter.newest:
-            // 'new' filter : order by creation date descending
             query = query.order('created_at', ascending: false);
             break;
-
           case RecipeFilter.popular:
-            // 'popular' filter : order by average_rating desc, then total_ratings desc
-            query = query.order('average_rating', ascending: false);
-            query = query.order('total_ratings', ascending: false);
+            query = query
+                .order('average_rating', ascending: false)
+                .order('total_ratings', ascending: false);
             break;
-
           case RecipeFilter.all:
           default:
-            // 'all' filter : order by title ascending
             query = query.order('title', ascending: true);
             break;
         }
-        
-        data = await query;
+
+        final dynamic response = await query;
+        data = response as List<dynamic>;
       }
 
-      // Conversion JSON -> Objets Recipe
-      return data.map((json) => Recipe.fromJson(json as Map<String, dynamic>)).toList();
+      return data
+          .map((json) => Recipe.fromJson(json as Map<String, dynamic>))
+          .toList();
     } catch (e) {
-      debugPrint(" ERROR fetchAllRecipes(): $e");
+      debugPrint("ERROR fetchAllRecipes(): $e");
       return [];
     }
   }
 
-/// Retrieves the score given by the current user for a specific recipe.
-  /// Returns the score (int) or null if the user has not yet rated it.
+  // ----------------------------------------
+  // RATINGS
+  // ----------------------------------------
   Future<int?> fetchUserRating(String recipeId) async {
-    // Get the current user's ID using the helper from AuthService
-   // final userId = _authService.getCurrentUserId();
-
-  
     try {
-      final Map<String, dynamic>? data = await _db
+      final dynamic res = await _db
           .from('ratings')
           .select('score')
           .eq('recipe_id', recipeId)
-          .eq('user_id', userId) // KEY: Selects the rating from THIS specific user
-          .maybeSingle(); // Returns one result or null
+          .eq('user_id', userId)
+          .maybeSingle();
 
-      if (data != null && data.containsKey('score')) {
-        return data['score'] as int;
-      }
-      return null;
-      
+      if (res == null) return null;
+
+      final Map<String, dynamic> data = res as Map<String, dynamic>;
+      final score = data['score'];
+      if (score == null) return null;
+
+      return (score as num).toInt();
     } catch (e) {
       debugPrint("ERROR fetchUserRating(): $e");
       return null;
     }
   }
 
+  // Liste des ratings (avec user_email via vue ratings_with_users si vous l’avez)
+  Future<List<Map<String, dynamic>>> fetchAllRatingsForRecipe(String recipeId) async {
+    try {
+      final dynamic data = await _db
+          .from('ratings_with_users')
+          .select('score, comment, created_at, user_email')
+          .eq('recipe_id', recipeId)
+          .order('created_at', ascending: false);
 
-
-// method to fetch all ratings for a recipe along with user info
-Future<List<Map<String, dynamic>>> fetchAllRatingsForRecipe(String recipeId) async {
-  try {
-    final data = await _db
-        .from('ratings_with_users') 
-        .select('score, comment, created_at, user_email')
-        .eq('recipe_id', recipeId)
-        .order('created_at', ascending: false);
-
-    return (data as List).map((rating) {
-      return {
-        'score': rating['score'],
-        'comment': rating['comment'],
-        'created_at': rating['created_at'],
-        'user_name': rating['user_email'] ?? 'Anonymous', 
-      };
-    }).toList();
-  } catch (e) {
-    debugPrint('ERROR fetchAllRatingsForRecipe(): $e');
-    rethrow;
-  }
-}
-
-// method to rate a recipe
-Future<Map<String, dynamic>> rateRecipe({
-  required String recipeId, 
-  required int score,
-  String? comment,
-}) async {
-  try {
-    // Insert new rating
-    await _db.from('ratings').insert({
-      'recipe_id': recipeId,
-      'user_id': userId,
-      'score': score,
-      'comment': comment,
-    });
-
-    // Recalculate average rating and total ratings
-    final List<Map<String, dynamic>> ratingsData = await _db
-        .from('ratings')
-        .select('score')
-        .eq('recipe_id', recipeId);
-
-    double totalScore = 0;
-    for (var row in ratingsData) {
-      totalScore += (row['score'] as num).toDouble();
+      final List list = data as List;
+      return list.map((rating) {
+        final r = rating as Map<String, dynamic>;
+        return {
+          'score': r['score'],
+          'comment': r['comment'],
+          'created_at': r['created_at'],
+          'user_name': r['user_email'] ?? 'Anonymous',
+        };
+      }).toList();
+    } catch (e) {
+      debugPrint('ERROR fetchAllRatingsForRecipe(): $e');
+      rethrow;
     }
-    
-    final int newTotalRatings = ratingsData.length;
-    final double newAverage = double.parse(
-      (totalScore / newTotalRatings).toStringAsFixed(1)
-    );
-
-    // Update recipe with new stats
-    await _db.from('recipes').update({
-      'average_rating': newAverage,
-      'total_ratings': newTotalRatings,
-    }).eq('id', recipeId);
-
-    return {'average': newAverage, 'total': newTotalRatings};
-  } catch (e) {
-    debugPrint("ERROR rateRecipe(): $e");
-    rethrow;
   }
-}
 
-/// Fetches the average rating and total ratings for a given recipe.
-Future<Map<String, num>> fetchRecipeStats(String recipeId) async {
-  try {
-    final data = await _db
-        .from('recipes')
-        .select('average_rating, total_ratings')
-        .eq('id', recipeId)
-        .single();
-    
-    return {
-      'average': (data['average_rating'] as num?) ?? 0.0,
-      'total': (data['total_ratings'] as num?) ?? 0,
-    };
-  } catch (e) {
-    debugPrint('ERROR fetchRecipeStats(): $e');
-    return {'average': 0.0, 'total': 0};
+  // Upsert rating + recalcul stats
+  Future<Map<String, dynamic>> rateRecipe({
+    required String recipeId,
+    required int score,
+    String? comment,
+  }) async {
+    try {
+      await _db.from('ratings').upsert({
+        'recipe_id': recipeId,
+        'user_id': userId,
+        'score': score,
+        'comment': comment,
+      });
+
+      final dynamic res = await _db
+          .from('ratings')
+          .select('score')
+          .eq('recipe_id', recipeId);
+
+      final List rows = res as List;
+      if (rows.isEmpty) {
+        return {'average': 0.0, 'total': 0};
+      }
+
+      double totalScore = 0;
+      for (final row in rows) {
+        totalScore += ((row as Map<String, dynamic>)['score'] as num).toDouble();
+      }
+
+      final int newTotalRatings = rows.length;
+      final double newAverage =
+          double.parse((totalScore / newTotalRatings).toStringAsFixed(1));
+
+      await _db.from('recipes').update({
+        'average_rating': newAverage,
+        'total_ratings': newTotalRatings,
+      }).eq('id', recipeId);
+
+      return {'average': newAverage, 'total': newTotalRatings};
+    } catch (e) {
+      debugPrint("ERROR rateRecipe(): $e");
+      rethrow;
+    }
   }
-}
 
-  /// Upload a recipe image to Supabase Storage and return the public URL
+  Future<Map<String, num>> fetchRecipeStats(String recipeId) async {
+    try {
+      final dynamic data = await _db
+          .from('recipes')
+          .select('average_rating, total_ratings')
+          .eq('id', recipeId)
+          .single();
+
+      final Map<String, dynamic> row = data as Map<String, dynamic>;
+
+      return {
+        'average': (row['average_rating'] as num?) ?? 0.0,
+        'total': (row['total_ratings'] as num?) ?? 0,
+      };
+    } catch (e) {
+      debugPrint('ERROR fetchRecipeStats(): $e');
+      return {'average': 0.0, 'total': 0};
+    }
+  }
+
+  // ----------------------------------------
+  // STORAGE: upload image
+  // ----------------------------------------
   Future<String?> uploadRecipeImage(Uint8List imageBytes, String fileName) async {
     try {
       final fileExt = fileName.split('.').last;
@@ -373,7 +499,8 @@ Future<Map<String, num>> fetchRecipeStats(String recipeId) async {
             fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
           );
 
-      final String publicUrl = _db.storage.from('recipe-images').getPublicUrl(storagePath);
+      final String publicUrl =
+          _db.storage.from('recipe-images').getPublicUrl(storagePath);
 
       return publicUrl;
     } catch (e) {

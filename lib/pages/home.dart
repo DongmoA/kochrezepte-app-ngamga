@@ -4,10 +4,9 @@ import '../supabase/database_service.dart';
 import '../widgets/recipe_card.dart';
 import 'recipe/recipe_form_page.dart';
 import 'recipe/recipe_detail_page.dart';
-import 'package:kochrezepte_app/pages/profile_page.dart';
-import 'package:kochrezepte_app/supabase/auth_service.dart';
-import 'package:kochrezepte_app/pages/Login_signUp/login_page.dart';
-
+import 'profile_page.dart';
+import '../supabase/auth_service.dart';
+import 'Login_signUp/login_page.dart';
 
 class RecipeHomePage extends StatefulWidget {
   const RecipeHomePage({super.key});
@@ -19,15 +18,12 @@ class RecipeHomePage extends StatefulWidget {
 class _RecipeHomePageState extends State<RecipeHomePage> {
   final DatabaseService _dbService = DatabaseService();
   final AuthService _authService = AuthService();
+
   List<Recipe> _recipes = [];
   bool _isLoading = true;
-  // 1. Store the list of favorite Recipe IDs locally
   Set<String> _favoriteIds = {};
-  
-  //  State variable to track the currently selected filter
-  RecipeFilter _currentFilter = RecipeFilter.all; 
+  RecipeFilter _currentFilter = RecipeFilter.all;
 
-  // Mapping des filtres pour l'affichage
   static const Map<RecipeFilter, String> _filterLabels = {
     RecipeFilter.all: 'Alle',
     RecipeFilter.favorite: 'Gespeichert',
@@ -36,65 +32,63 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
     RecipeFilter.mine: 'Meine',
   };
 
-  // Mapping des icônes pour chaque filtre
   static const Map<RecipeFilter, IconData> _filterIcons = {
-    RecipeFilter.all: Icons.grid_view,           // Grille pour "Tous"
-    RecipeFilter.favorite: Icons.favorite,       // Coeur pour "Favoris"
-    RecipeFilter.newest: Icons.fiber_new,        // Badge "NEW"
-    RecipeFilter.popular: Icons.trending_up,     // Tendance pour "Populaire"
-    RecipeFilter.mine: Icons.person,             // Personne pour "Mes recettes"
+    RecipeFilter.all: Icons.grid_view,
+    RecipeFilter.favorite: Icons.favorite,
+    RecipeFilter.newest: Icons.fiber_new,
+    RecipeFilter.popular: Icons.trending_up,
+    RecipeFilter.mine: Icons.person,
   };
-
 
   @override
   void initState() {
     super.initState();
-    // Appeler avec le filtre par défaut
     _loadRecipes(filter: _currentFilter);
   }
 
-Future<void> _onToggleFavorite(Recipe recipe) async {
-    // Optimistic UI update (update immediately before server response)
-    final isFav = _favoriteIds.contains(recipe.id);
+  Future<void> _onToggleFavorite(Recipe recipe) async {
+    final id = recipe.id;
+    if (id == null || id.isEmpty) return;
+
+    final isFav = _favoriteIds.contains(id);
     setState(() {
       if (isFav) {
-        _favoriteIds.remove(recipe.id);
+        _favoriteIds.remove(id);
       } else {
-        _favoriteIds.add(recipe.id!);
+        _favoriteIds.add(id);
       }
     });
 
     try {
-      await _dbService.toggleFavorite(recipe.id!);
+      await _dbService.toggleFavorite(id);
     } catch (e) {
-      // Revert if error
       setState(() {
-         if (isFav) _favoriteIds.add(recipe.id!);
-         else  _favoriteIds.remove(recipe.id);
+        if (isFav) {
+          _favoriteIds.add(id);
+        } else {
+          _favoriteIds.remove(id);
+        }
       });
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Error: $e")));
+      }
     }
   }
 
-  /// Fetches recipes based on the currently selected filter.
   Future<void> _loadRecipes({required RecipeFilter filter}) async {
-    if (filter == _currentFilter && !_isLoading && _recipes.isNotEmpty) {
-      // Optimization: avoid reloading if the filter hasn't changed and data is present
-    }
-    
     setState(() => _isLoading = true);
-    
+
     try {
-      // Fetch both recipes and user favorites in parallel
       final recipes = await _dbService.fetchAllRecipes(filter: filter);
       final favoriteIds = await _dbService.fetchUserFavorites();
-      
+
       if (mounted) {
         setState(() {
           _recipes = recipes;
-          _favoriteIds = favoriteIds; // Update favorite IDs
+          _favoriteIds = favoriteIds;
           _isLoading = false;
-          _currentFilter = filter; // Update the filter state upon successful load
+          _currentFilter = filter;
         });
       }
     } catch (e) {
@@ -107,26 +101,22 @@ Future<void> _onToggleFavorite(Recipe recipe) async {
     }
   }
 
-  /// Handles the selection of a new filter
   void _onFilterSelected(RecipeFilter filter) {
     if (filter != _currentFilter) {
       _loadRecipes(filter: filter);
     }
   }
 
-  void _navigateToCreateRecipe() async {
+  Future<void> _navigateToCreateRecipe() async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const RecipeFormPage()),
     );
-    
-    // Reload recipes with the current filter if a recipe was added
     if (result == true) {
       _loadRecipes(filter: _currentFilter);
     }
   }
 
-  /// NEW: Widget to build the horizontal filter bar
   Widget _buildFilterChips() {
     return Container(
       height: 50,
@@ -146,24 +136,20 @@ Future<void> _onToggleFavorite(Recipe recipe) async {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        icon,
-                        size: 18,
-                        color: Colors.black87,
-                      ),
+                      Icon(icon, size: 18, color: Colors.black87),
                       const SizedBox(width: 4),
                       Text(
                         label,
                         style: TextStyle(
                           color: Colors.black87,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontWeight:
+                              isSelected ? FontWeight.bold : FontWeight.normal,
                           fontSize: 13,
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
-                  // Indicateur visuel sous le filtre sélectionné
                   Container(
                     height: 3,
                     width: 100,
@@ -181,98 +167,106 @@ Future<void> _onToggleFavorite(Recipe recipe) async {
     );
   }
 
-@override
-Widget build(BuildContext context) {
-  return Scaffold(
-    appBar: AppBar(
-      title: const Text('My Recipes'),
-      backgroundColor: Colors.orange,
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.person),
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const ProfilePage()),
-            );
-          },
-
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Recipes'),
+        backgroundColor: Colors.orange,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfilePage()),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              try {
+                await _authService.signOut();
+                if (!mounted) return;
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginPage()),
+                );
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(SnackBar(content: Text("Erreur: $e")));
+                }
+              }
+            },
+          ),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(50.0),
+          child: _buildFilterChips(),
         ),
-        IconButton(
-  icon: const Icon(Icons.logout),
-  onPressed: () async {
-    try {
-      await _authService.signOut();
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginPage()),
-      );
-    } catch (e) {
-      print('Erreur : $e');
-    }
-  },
-),
-      ],
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(50.0),
-        child: _buildFilterChips(),
       ),
-    ),
-    // CHANGE: Use Column instead of directly ListView to fit the filter bar
-    body: Column(
+      body: Column(
         children: [
-        
-         // _buildFilterChips(),
-          
-          // 2. Recipe List (Expanded to take remaining space)
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _recipes.isEmpty
                     ? _buildEmptyState()
                     : RefreshIndicator(
-  onRefresh: () => _loadRecipes(filter: _currentFilter),
-  child: LayoutBuilder(
-    builder: (context, constraints) {
-      // Determine the number of columns based on available width
-      int crossAxisCount = 1;
-      if (constraints.maxWidth > 1200) {
-        crossAxisCount = 3; // Desktop: 3 columns
-      } else if (constraints.maxWidth > 700) {
-        crossAxisCount = 2; // Tablet: 2 columns
-      }
+                        onRefresh: () =>
+                            _loadRecipes(filter: _currentFilter),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            int crossAxisCount = 1;
+                            if (constraints.maxWidth > 1200) {
+                              crossAxisCount = 3;
+                            } else if (constraints.maxWidth > 700) {
+                              crossAxisCount = 2;
+                            }
 
-      return GridView.builder(
-        padding: const EdgeInsets.all(16),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: crossAxisCount,
-          crossAxisSpacing: 16, // Horizontal space between cards
-          mainAxisSpacing: 16,  // Vertical space between cards
-          // Adjust aspect ratio: 1.1 for single column (mobile), 
-          // 0.85 for multi-column (desktop/tablet) to keep cards vertical
-          childAspectRatio: crossAxisCount == 1 ? 1.1 : 0.85, 
-        ),
-        itemCount: _recipes.length,
-        itemBuilder: (context, index) {
-          final recipe = _recipes[index];
-          return RecipeCard(
-            recipe: recipe,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => RecipeDetailScreen(recipe: recipe),
-                ),
-              );
-            },
-            isFavorite: _favoriteIds.contains(recipe.id),
-            onFavoriteToggle: () => _onToggleFavorite(recipe),
-          );
-        },
-      );
-    },
-  ),
-)
+                            return GridView.builder(
+                              padding: const EdgeInsets.all(16),
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                crossAxisSpacing: 16,
+                                mainAxisSpacing: 16,
+                                childAspectRatio:
+                                    crossAxisCount == 1 ? 1.1 : 0.85,
+                              ),
+                              itemCount: _recipes.length,
+                              itemBuilder: (context, index) {
+                                final recipe = _recipes[index];
+                                final id = recipe.id ?? '';
+
+                                return RecipeCard(
+                                  recipe: recipe,
+                                  onTap: () async {
+                                    final changed = await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            RecipeDetailScreen(recipe: recipe),
+                                      ),
+                                    );
+                                    if (changed == true) {
+                                      _loadRecipes(
+                                          filter: _currentFilter);
+                                    }
+                                  },
+                                  isFavorite:
+                                      id.isNotEmpty &&
+                                          _favoriteIds.contains(id),
+                                  onFavoriteToggle: () =>
+                                      _onToggleFavorite(recipe),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
           ),
         ],
       ),
@@ -284,22 +278,20 @@ Widget build(BuildContext context) {
     );
   }
 
-
-  /// Displays a friendly message when the list is empty.
   Widget _buildEmptyState() {
-    // We can also add context to the empty state based on the filter
     String message = 'No recipes found.';
     if (_currentFilter == RecipeFilter.mine) {
       message = 'You have not created any recipes yet.';
     } else if (_currentFilter == RecipeFilter.favorite) {
       message = 'You have not saved any recipes as favorites.';
     }
-    
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.restaurant_menu, size: 80, color: Colors.grey[400]),
+          Icon(Icons.restaurant_menu,
+              size: 80, color: Colors.grey[400]),
           const SizedBox(height: 16),
           Text(
             message,
