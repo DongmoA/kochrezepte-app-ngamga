@@ -1,4 +1,5 @@
 
+import 'package:flutter/widgets.dart';
 import 'package:kochrezepte_app/supabase/supabase_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // Nécessaire pour PostgrestException
 
@@ -71,7 +72,7 @@ class AuthService {
           .single();
       return data;
     } catch (e) {
-      print('Erreur getProfile: $e');
+      debugPrint('Error getProfile: $e');
       return null;
     }
   }

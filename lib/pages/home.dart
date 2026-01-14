@@ -431,7 +431,7 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
                                 mainAxisSpacing: 16,
                                 childAspectRatio: crossAxisCount == 1
                                     ? 1.1
-                                    : 0.85,
+                                    : 0.99,
                               ),
                           itemCount: _recipes.length,
                           itemBuilder: (context, index) {

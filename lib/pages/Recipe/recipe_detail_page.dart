@@ -134,7 +134,8 @@ Check out this delicious recipe!
   }
 
   Widget _buildCreatorInfo() {
-    if (widget.recipe.ownerEmail == null) return const SizedBox.shrink();
+   
+    if (widget.recipe.ownerName == null) return const SizedBox.shrink();
 
     return Padding(
       padding: const EdgeInsets.only(top: 12),
@@ -143,7 +144,7 @@ Check out this delicious recipe!
           const Icon(Icons.person_outline, size: 16, color: Colors.grey),
           const SizedBox(width: 6),
           Text(
-            'Created by ${widget.recipe.ownerEmail}',
+            'von ${widget.recipe.ownerName}',
             style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
         ],
@@ -173,7 +174,7 @@ Check out this delicious recipe!
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
-        backgroundColor: Colors.orange,
+        backgroundColor: const Color(0xFFE65100),
         elevation: 0,
         title: const Text(
           'Rezept',
@@ -277,33 +278,45 @@ Check out this delicious recipe!
                   if (_hasNutritionInfo(recipe))
                     _buildSectionCard(
                       title: "Nährwerte pro Portion",
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      child: Column(
                         children: [
-                          if (recipe.calories != null)
-                            _buildNutritionMini(
-                              recipe.calories.toString(),
-                              "kcal",
-                              "Kalorien",
-                            ),
-                          if (recipe.protein != null)
-                            _buildNutritionMini(
-                              recipe.protein.toString(),
-                              "g",
-                              "Protein",
-                            ),
-                          if (recipe.carbs != null)
-                            _buildNutritionMini(
-                              recipe.carbs.toString(),
-                              "g",
-                              "Carbs",
-                            ),
-                          if (recipe.fat != null)
-                            _buildNutritionMini(
-                              recipe.fat.toString(),
-                              "g",
-                              "Fett",
-                            ),
+                          // Erste Reihe: Kalorien und Protein
+                          Row(
+                            children: [
+                              if (recipe.calories != null)
+                                _buildNutritionCard(
+                                  recipe.calories.toString(),
+                                  "kcal",
+                                  "Kalorien",
+                                ),
+                              if (recipe.calories != null) const SizedBox(width: 16),
+                              if (recipe.protein != null)
+                                _buildNutritionCard(
+                                  recipe.protein.toString(),
+                                  "g",
+                                  "Protein",
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          // Zweite Reihe: Carbs und Fett
+                          Row(
+                            children: [
+                              if (recipe.carbs != null)
+                                _buildNutritionCard(
+                                  recipe.carbs.toString(),
+                                  "g",
+                                  "Carbs",
+                                ),
+                              if (recipe.carbs != null) const SizedBox(width: 16),
+                              if (recipe.fat != null)
+                                _buildNutritionCard(
+                                  recipe.fat.toString(),
+                                  "g",
+                                  "Fett",
+                                ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -430,6 +443,32 @@ Check out this delicious recipe!
       child: Text(
         label,
         style: const TextStyle(fontSize: 12, color: Colors.black54),
+      ),
+    );
+  }
+
+  Widget _buildNutritionCard(String value, String unit, String label) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              "$value $unit",
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
       ),
     );
   }

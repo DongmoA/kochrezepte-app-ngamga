@@ -314,6 +314,7 @@ class DatabaseService {
 
     const String selectQuery = '''
       *,
+      ownername,
       nutrition(*),
       recipe_ingredients(*, ingredients(*)),
       recipe_steps(*),
@@ -324,17 +325,31 @@ class DatabaseService {
       List<dynamic> data;
 
       if (filter == RecipeFilter.favorite) {
-        final dynamic response = await _db
+        // D'abord récupérer les IDs des recettes favorisées
+        final dynamic favoriteResponse = await _db
             .from('user_favorites')
-            .select('recipes($selectQuery)')
-            .eq('user_id', userId)
-            .order('created_at', ascending: false);
+            .select('recipe_id')
+            .eq('user_id', userId);
 
-        final List list = response as List;
-        data = list.map((e) => e['recipes']).where((x) => x != null).toList();
+        final List favoriteList = favoriteResponse as List;
+        final List<String> favoriteRecipeIds =
+            favoriteList.map((f) => _id(f['recipe_id'])).toList();
+
+        if (favoriteRecipeIds.isEmpty) {
+          data = [];
+        } else {
+          // Puis récupérer les recettes complètes depuis recipes_with_owner
+          dynamic query = _db
+              .from('recipes_with_owner')
+              .select(selectQuery)
+              .inFilter('id', favoriteRecipeIds)
+              .order('created_at', ascending: false);
+
+          final dynamic response = await query;
+          data = response as List<dynamic>;
+        }
       } else {
-        // NOTE: recipes_with_owner est utilisé dans ton UI (ownerEmail).
-        // Si cette vue n’existe pas, dis-moi et on passe en join sur profiles/users.
+       
         dynamic query = _db.from('recipes_with_owner').select(selectQuery);
 
         switch (filter) {
@@ -359,18 +374,41 @@ class DatabaseService {
         data = response as List<dynamic>;
       }
 
-      return data
-          .map((json) => Recipe.fromJson(json as Map<String, dynamic>))
-          .toList();
+      // Enrichir les recettes avec les noms d'utilisateur depuis profiles
+      List<Recipe> recipes = [];
+      for (final json in data) {
+        final Map<String, dynamic> recipeJson = json as Map<String, dynamic>;
+        final ownerId = recipeJson['owner_id']?.toString();
+        
+        if (ownerId != null && ownerId.isNotEmpty) {
+          try {
+            final profileData = await _db
+                .from('profiles')
+                .select('username')
+                .eq('id', ownerId)
+                .maybeSingle();
+            
+            if (profileData != null) {
+              recipeJson['ownername'] = profileData['username'];
+            }
+          } catch (e) {
+            debugPrint("ERROR fetching profile for owner $ownerId: $e");
+          }
+        }
+        
+        recipes.add(Recipe.fromJson(recipeJson));
+      }
+      
+      return recipes;
     } catch (e) {
       debugPrint("ERROR fetchAllRecipes(): $e");
       return [];
     }
   }
 
-  // ----------------------------------------
+
   // RATINGS
-  // ----------------------------------------
+
   Future<int?> fetchUserRating(String recipeId) async {
     try {
       final dynamic res = await _db

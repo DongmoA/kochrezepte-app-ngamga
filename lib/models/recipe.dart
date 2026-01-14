@@ -39,7 +39,7 @@ class Recipe {
   final List<String> tags; // list of tag names
 
   // user who created the recipe
-   final String? ownerEmail; 
+   final String? ownerName; 
 
   Recipe({
     this.id,
@@ -58,7 +58,7 @@ class Recipe {
     this.ingredients = const [],
     this.steps = const [],
     this.tags = const [],
-    this.ownerEmail,
+    this.ownerName,
   });
 
   /// Helper: gère nutrition renvoyé sous forme Map OU List<Map> (0..1)
@@ -83,6 +83,7 @@ class Recipe {
 
       title: (json['title'] ?? '').toString(),
       imageUrl: json['image_url']?.toString(),
+      ownerName: json['ownername']?.toString(), // NEW
 
       durationMinutes: (json['duration_minutes'] as num?)?.toInt() ?? 0,
       servings: (json['servings'] as num?)?.toInt() ?? 1,
