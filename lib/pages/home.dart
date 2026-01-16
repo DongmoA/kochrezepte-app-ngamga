@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kochrezepte_app/pages/weeklyplan/weeklyplan_page.dart';
 import '../models/recipe.dart';
 import '../supabase/database_service.dart';
 import '../widgets/recipe_card.dart';
@@ -490,7 +491,10 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
         ],
         onTap: (index) {
           if (index == 1) {
-            // Navigator to Wochenplan
+            Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const WochenplanPage()),
+          );
           } else if (index == 2) {
             // Navigator to Einkauf
           }
