@@ -470,7 +470,6 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
         backgroundColor: const Color(0xFFE65100),
         child: const Icon(Icons.add),
       ),
-      // REMPLACER lignes 325-346 par :
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 0,
         selectedItemColor: const Color(0xFFE65100),
@@ -493,7 +492,7 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
           if (index == 1) {
             Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const WochenplanPage()),
+            MaterialPageRoute(builder: (_) => const WeeklyplanPage()),
           );
           } else if (index == 2) {
             // Navigator to Einkauf

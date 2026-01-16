@@ -545,4 +545,116 @@ class DatabaseService {
       return null;
     }
   }
+
+  // ============================================
+  // WEEK PLAN METHODS
+  // ============================================
+
+  DateTime _getMondayOfWeek(DateTime date) {
+    final dayOfWeek = date.weekday;
+    return date.subtract(Duration(days: dayOfWeek - 1));
+  }
+
+  String _dayToEnglish(String germanDay) {
+    const Map<String, String> dayMap = {
+      'Montag': 'Monday',
+      'Dienstag': 'Tuesday',
+      'Mittwoch': 'Wednesday',
+      'Donnerstag': 'Thursday',
+      'Freitag': 'Friday',
+      'Samstag': 'Saturday',
+      'Sonntag': 'Sunday',
+    };
+    return dayMap[germanDay] ?? germanDay;
+  }
+
+  String _mealToEnglish(String germanMeal) {
+    const Map<String, String> mealMap = {
+      'Frühstück': 'Breakfast',
+      'Mittagessen': 'Lunch',
+      'Abendessen': 'Dinner',
+    };
+    return mealMap[germanMeal] ?? germanMeal;
+  }
+
+  Future<void> saveWeekPlan(Map<String, Map<String, Recipe?>> weekPlan) async {
+    final userId = _authService.getCurrentUserId();
+    if (userId == null) throw Exception('User not authenticated');
+
+    try {
+      final monday = _getMondayOfWeek(DateTime.now());
+      final weekStartDate = '${monday.year}-${monday.month.toString().padLeft(2, '0')}-${monday.day.toString().padLeft(2, '0')}';
+
+      await _db.from('week_plan').delete().eq('user_id', userId).eq('week_start_date', weekStartDate);
+
+      final List<Map<String, dynamic>> dataToInsert = [];
+      weekPlan.forEach((day, meals) {
+        meals.forEach((mealType, recipe) {
+          if (recipe != null && recipe.id != null && recipe.id!.isNotEmpty) {
+            dataToInsert.add({
+              'user_id': userId,
+              'week_start_date': weekStartDate,
+              'day_of_week': _dayToEnglish(day),
+              'meal_type': _mealToEnglish(mealType),
+              'recipe_id': recipe.id,
+            });
+          }
+        });
+      });
+
+      if (dataToInsert.isNotEmpty) {
+        await _db.from('week_plan').insert(dataToInsert);
+      }
+    } catch (e) {
+      debugPrint('Error saving week plan: $e');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, Map<String, String?>>> loadWeekPlan() async {
+    final userId = _authService.getCurrentUserId();
+    if (userId == null) throw Exception('User not authenticated');
+
+    try {
+      final monday = _getMondayOfWeek(DateTime.now());
+      final weekStartDate = '${monday.year}-${monday.month.toString().padLeft(2, '0')}-${monday.day.toString().padLeft(2, '0')}';
+
+      final response = await _db.from('week_plan').select('day_of_week, meal_type, recipe_id').eq('user_id', userId).eq('week_start_date', weekStartDate);
+
+      final Map<String, Map<String, String?>> weekPlan = {};
+
+      const Map<String, String> dayMap = {
+        'Monday': 'Montag', 'Tuesday': 'Dienstag', 'Wednesday': 'Mittwoch',
+        'Thursday': 'Donnerstag', 'Friday': 'Freitag', 'Saturday': 'Samstag', 'Sunday': 'Sonntag',
+      };
+
+      const Map<String, String> mealMap = {
+        'Breakfast': 'Frühstück', 'Lunch': 'Mittagessen', 'Dinner': 'Abendessen',
+      };
+
+      for (var entry in response) {
+        final day = dayMap[entry['day_of_week']] ?? entry['day_of_week'];
+        final mealType = mealMap[entry['meal_type']] ?? entry['meal_type'];
+        final recipeId = entry['recipe_id'] as String?;
+
+        if (!weekPlan.containsKey(day)) weekPlan[day] = {};
+        weekPlan[day]![mealType] = recipeId;
+      }
+
+      return weekPlan;
+    } catch (e) {
+      debugPrint('Error loading week plan: $e');
+      rethrow;
+    }
+  }
+
+  Future<Recipe?> getRecipeById(String recipeId) async {
+    try {
+      final response = await _db.from('recipes').select().eq('id', recipeId).single();
+      return Recipe.fromJson(response);
+    } catch (e) {
+      debugPrint('Error getting recipe by ID: $e');
+      return null;
+    }
+  }
 }

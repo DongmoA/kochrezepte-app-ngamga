@@ -1,4 +1,3 @@
-// lib/pages/recipe/recipe_detail_page.dart
 
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
@@ -24,7 +23,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   bool get _isMine =>
       widget.recipe.ownerId != null && widget.recipe.ownerId == _dbService.userId;
 
-  // Variables locales pour l'affichage dynamique des ratings en haut
   late double _currentAverage;
   late int _currentTotal;
   bool _isLoadingStats = true;
@@ -68,7 +66,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       ),
     );
 
-    // Si update OK: on retourne true pour refresh la liste
     if (updated == true && mounted) {
       Navigator.pop(context, true);
     }
@@ -122,9 +119,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 Check out this delicious recipe!
 '''.trim();
 
-    // NOTE: tu avais déjà cette API dans ton projet.
-    // Si ton IDE te signale une erreur ici, dis-moi le message exact:
-    // je te donnerai la variante Share.share(...) compatible.
     final ShareParams params = ShareParams(
       text: message,
       subject: widget.recipe.title,
@@ -337,7 +331,6 @@ Check out this delicious recipe!
                     ),
                   ),
 
-                  // CARD : Ratings (avec callback pour mettre à jour le haut)
                   _buildSectionCard(
                     title: "Bewertungen",
                     child: RecipeRatingWidget(

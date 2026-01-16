@@ -1,6 +1,3 @@
-// lib/pages/recipe/recipe_form_page.dart
-
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
@@ -839,8 +836,9 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                               contentPadding: EdgeInsets.symmetric(vertical: 8),
                             ),
                             keyboardType: TextInputType.number,
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                          ),
+                            inputFormatters: [
+                            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                          ],                          ),
                         ],
                       ),
                     ),
@@ -859,6 +857,9 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                               contentPadding: EdgeInsets.symmetric(vertical: 8),
                             ),
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                            ],
                           ),
                         ],
                       ),
@@ -878,6 +879,9 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                               contentPadding: EdgeInsets.symmetric(vertical: 8),
                             ),
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                             FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                             ],
                           ),
                         ],
                       ),
@@ -897,6 +901,9 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                               contentPadding: EdgeInsets.symmetric(vertical: 8),
                             ),
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                             FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                             ],
                           ),
                         ],
                       ),
