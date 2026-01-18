@@ -30,6 +30,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
   final _fatController = TextEditingController();
 
   Difficulty _selectedDifficulty = Difficulty.mittel;
+  MealType? _selectedMealType;
 
   final List<RecipeIngredient> _ingredients = [];
   final List<RecipeStep> _steps = [];
@@ -42,10 +43,23 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
   XFile? _selectedImageFile;
 
   bool get _isEdit => widget.recipeToEdit != null;
+  final List<String> _availableTags = [
+  'Italienisch',
+  'Pasta',
+  'Schnell',
+  'Vegan',
+  'Gesund',
+  'Bowl',
+  'Fisch',
+  'Vegetarisch',
+  'Curry',
+  'Asiatisch',
+];
 
   @override
   void initState() {
     super.initState();
+    
 
     // Track changes for exit confirmation
     _titleController.addListener(_markAsChanged);
@@ -59,13 +73,14 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
     // Prefill on edit
     final r = widget.recipeToEdit;
+    
     if (r != null) {
       _titleController.text = r.title;
       _imageUrlController.text = r.imageUrl ?? '';
       _durationController.text = r.durationMinutes.toString();
       _servingsController.text = r.servings.toString();
       _selectedDifficulty = r.difficulty;
-
+      _selectedMealType = r.mealType;
       _caloriesController.text = r.calories?.toString() ?? '';
       _proteinController.text = r.protein?.toString() ?? '';
       _carbsController.text = r.carbs?.toString() ?? '';
@@ -223,6 +238,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
         durationMinutes: int.parse(_durationController.text),
         servings: int.parse(_servingsController.text),
         difficulty: _selectedDifficulty,
+        mealType: _selectedMealType,
         ingredients: List.of(_ingredients),
         steps: List.of(_steps),
         tags: List.of(_tags),
@@ -326,21 +342,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
     );
   }
 
-  void _addTag() {
-    showDialog(
-      context: context,
-      builder: (context) => _TagDialog(
-        onAdd: (tag) {
-          if (!_tags.contains(tag)) {
-            setState(() {
-              _tags.add(tag);
-              _hasUnsavedChanges = true;
-            });
-          }
-        },
-      ),
-    );
-  }
+ 
 
   @override
   Widget build(BuildContext context) {
@@ -759,62 +761,106 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
               const SizedBox(height: 16),
 
-              // Tags Card
-              _buildCard(
-                title: 'Tags / Kategorien',
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            decoration: const InputDecoration(
-                              hintText: 'Neuer Tag',
-                              hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                              border: InputBorder.none,
-                            ),
-                            readOnly: true,
-                            onTap: _addTag,
-                          ),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: _addTag,
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text('Hinzufügen'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF5722),
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (_tags.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _tags.map((tag) {
-                          return Chip(
-                            label: Text(tag, style: const TextStyle(fontSize: 13)),
-                            deleteIcon: const Icon(Icons.close, size: 18),
-                            onDeleted: () {
-                              setState(() {
-                                _tags.remove(tag);
-                                _hasUnsavedChanges = true;
-                              });
-                            },
-                            backgroundColor: Colors.orange[50],
-                          );
-                        }).toList(),
-                      ),
-                    ],
-                  ],
-                ),
+             // Tags / Kategorien Card
+_buildCard(
+  title: 'Tags / Kategorien',
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      //  SECTION MAHLZEIT
+      const Text(
+        '🍽️ Mahlzeit (mehrere möglich)',
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87),
+      ),
+      const SizedBox(height: 12),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: MealType.values.map((type) {
+          final isSelected = _selectedMealType == type;
+          final label = _getMealTypeLabel(type);
+          
+          return ChoiceChip(
+            label: Text(label),
+            selected: isSelected,
+            onSelected: (selected) {
+              setState(() {
+                _selectedMealType = selected ? type : null;
+                _hasUnsavedChanges = true;
+              });
+            },
+            backgroundColor: Colors.grey[100],
+            selectedColor: const Color(0xFFFF5722).withOpacity(0.15),
+            labelStyle: TextStyle(
+              color: isSelected ? const Color(0xFFFF5722) : Colors.black87,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              fontSize: 13,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: BorderSide(
+                color: isSelected ? const Color(0xFFFF5722) : Colors.grey[300]!,
+                width: 1.5,
               ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          );
+        }).toList(),
+      ),
+      
+      const SizedBox(height: 24),
+      const Divider(),
+      const SizedBox(height: 16),
+      
+      //  SECTION TAGS 
+     // 🏷️ SECTION TAGS
+const Text(
+  '🏷️ Tags',
+  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87),
+),
+const SizedBox(height: 12),
 
+// 🆕 Liste des tags prédéfinis avec FilterChip
+Wrap(
+  spacing: 8,
+  runSpacing: 8,
+  children: _availableTags.map((tag) {
+    final isSelected = _tags.contains(tag);
+    return FilterChip(
+      label: Text(tag),
+      selected: isSelected,
+      onSelected: (selected) {
+        setState(() {
+          if (selected) {
+            _tags.add(tag);
+          } else {
+            _tags.remove(tag);
+          }
+          _hasUnsavedChanges = true;
+        });
+      },
+      backgroundColor: Colors.grey[100],
+      selectedColor: const Color(0xFFFF5722).withOpacity(0.15),
+      checkmarkColor: const Color(0xFFFF5722),
+      labelStyle: TextStyle(
+        color: isSelected ? const Color(0xFFFF5722) : Colors.black87,
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+        fontSize: 13,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: isSelected ? const Color(0xFFFF5722) : Colors.grey[300]!,
+          width: 1.5,
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    );
+  }).toList(),
+),
+    ],
+  ),
+),
               const SizedBox(height: 16),
 
               // Nährwerte Card
@@ -1015,6 +1061,22 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
         return 'Schwer';
     }
   }
+  String _getMealTypeLabel(MealType type) {
+  switch (type) {
+    case MealType.fruehstueck:
+      return 'Frühstück';
+    case MealType.vorspeise:
+      return 'Vorspeise';
+    case MealType.hauptgericht:
+      return 'Hauptgericht';
+    case MealType.beilage:
+      return 'Beilage';
+    case MealType.dessert:
+      return 'Dessert';
+    case MealType.snack:
+      return 'Snack';
+  }
+}
 
   @override
   void dispose() {
@@ -1210,52 +1272,4 @@ class _StepDialogState extends State<_StepDialog> {
   }
 }
 
-class _TagDialog extends StatefulWidget {
-  final Function(String) onAdd;
 
-  const _TagDialog({required this.onAdd});
-
-  @override
-  State<_TagDialog> createState() => _TagDialogState();
-}
-
-class _TagDialogState extends State<_TagDialog> {
-  final _tagController = TextEditingController();
-
-  @override
-  void dispose() {
-    _tagController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Tag hinzufügen'),
-      content: TextField(
-        controller: _tagController,
-        decoration: const InputDecoration(labelText: 'Tag-Name'),
-        textCapitalization: TextCapitalization.words,
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Abbrechen'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            if (_tagController.text.isNotEmpty) {
-              widget.onAdd(_tagController.text.trim());
-              Navigator.pop(context);
-            }
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFFF5722),
-            foregroundColor: Colors.white,
-          ),
-          child: const Text('Hinzufügen'),
-        ),
-      ],
-    );
-  }
-}

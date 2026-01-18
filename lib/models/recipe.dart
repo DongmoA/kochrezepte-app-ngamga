@@ -9,6 +9,15 @@ enum RecipeFilter {
 }
 
 enum Difficulty { einfach, mittel, schwer }
+// enum for Mealtypes
+enum MealType {
+  fruehstueck,
+  vorspeise,
+  hauptgericht,
+  beilage,
+  dessert,
+  snack,
+}
 
 class Recipe {
   final String? id;
@@ -22,6 +31,7 @@ class Recipe {
   final int durationMinutes;
   final int servings;
   final Difficulty difficulty;
+  final MealType? mealType;
 
   // ratings
   final double averageRating;
@@ -32,6 +42,8 @@ class Recipe {
   final double? protein;
   final double? carbs;
   final double? fat;
+
+  
 
   // relational lists
   final List<RecipeIngredient> ingredients;
@@ -49,6 +61,7 @@ class Recipe {
     required this.durationMinutes,
     required this.servings,
     required this.difficulty,
+    this.mealType,
     this.calories,
     this.protein,
     this.carbs,
@@ -89,6 +102,7 @@ class Recipe {
       servings: (json['servings'] as num?)?.toInt() ?? 1,
 
       difficulty: _parseDifficulty(json['difficulty']?.toString()),
+      mealType: _parseMealType(json['meal_type']?.toString()),
 
       calories: (nutritionData?['calories'] as num?)?.toInt(),
       protein: (nutritionData?['protein_g'] as num?)?.toDouble(),
@@ -124,6 +138,7 @@ class Recipe {
       'duration_minutes': durationMinutes,
       'servings': servings,
       'difficulty': difficulty.name.capitalize(), // ex: "mittel" -> "Mittel"
+      'meal_type': mealType != null ? mealTypeToString(mealType!) : null, // ex: "fruehstueck" -> "Fruehstueck"
       'average_rating': averageRating,
       'total_ratings': totalRatings,
 
@@ -143,6 +158,43 @@ class Recipe {
         return Difficulty.mittel;
     }
   }
+  static MealType? _parseMealType(String? value) {
+  if (value == null) return null;
+  
+  switch (value.toLowerCase()) {
+    case 'frühstück':
+    case 'fruehstueck':
+      return MealType.fruehstueck;
+    case 'vorspeise':
+      return MealType.vorspeise;
+    case 'hauptgericht':
+      return MealType.hauptgericht;
+    case 'beilage':
+      return MealType.beilage;
+    case 'dessert':
+      return MealType.dessert;
+    case 'snack':
+      return MealType.snack;
+    default:
+      return null;
+  }
+}
+static String mealTypeToString(MealType type) {
+  switch (type) {
+    case MealType.fruehstueck:
+      return 'Frühstück';
+    case MealType.vorspeise:
+      return 'Vorspeise';
+    case MealType.hauptgericht:
+      return 'Hauptgericht';
+    case MealType.beilage:
+      return 'Beilage';
+    case MealType.dessert:
+      return 'Dessert';
+    case MealType.snack:
+      return 'Snack';
+  }
+}
 }
 
 // Extension for String to capitalize the first letter

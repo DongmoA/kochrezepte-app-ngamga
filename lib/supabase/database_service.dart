@@ -30,10 +30,11 @@ class DatabaseService {
             'servings': recipe.servings,
             'difficulty': recipe.difficulty.name[0].toUpperCase() +
                 recipe.difficulty.name.substring(1),
+            'meal_type': recipe.mealType != null ? Recipe.mealTypeToString(recipe.mealType!) : null,
             'owner_id': userId,
           })
           .select()
-          .single();
+          .single();  
 
       final String recipeId = _id(recipeRes['id']);
       if (recipeId.isEmpty) {
@@ -143,6 +144,7 @@ class DatabaseService {
         'servings': recipe.servings,
         'difficulty': recipe.difficulty.name[0].toUpperCase() +
             recipe.difficulty.name.substring(1),
+        'meal_type': recipe.mealType != null ? Recipe.mealTypeToString(recipe.mealType!) : null,
       }).eq('id', recipeId).eq('owner_id', userId);
 
       // nutrition (delete + insert)

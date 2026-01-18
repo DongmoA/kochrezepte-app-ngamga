@@ -28,8 +28,10 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
   bool _isLoading = true;
   Set<String> _favoriteIds = {};
   RecipeFilter _currentFilter = RecipeFilter.all;
+  MealType? _selectedMealType;
 
   final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   static const Map<RecipeFilter, String> _filterLabels = {
     RecipeFilter.all: 'Alle',
@@ -132,10 +134,85 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
   }
 
   void _applyFilters() {
-    print("Filtres appliqués:");
-    print("Tags: $_selectedTags");
-    print("Temps: $_selectedTime");
-    
+    setState(() {});
+  }
+
+  List<Recipe> _getFilteredRecipes() {
+    List<Recipe> filtered = List.from(_recipes);
+
+    if (_searchQuery.isNotEmpty) {
+      final query = _searchQuery.toLowerCase().trim();
+
+      // 1. FILTRER : Chercher uniquement dans le titre
+      filtered = filtered.where((recipe) {
+        return recipe.title.toLowerCase().contains(query);
+      }).toList();
+
+      // 2. TRIER par pertinence
+      filtered.sort((a, b) {
+        final titleA = a.title.toLowerCase();
+        final titleB = b.title.toLowerCase();
+
+        // Priorité 1 : Titre EXACT (rare mais possible)
+        if (titleA == query && titleB != query) return -1;
+        if (titleA != query && titleB == query) return 1;
+
+        // Priorité 2 : Titre COMMENCE par la recherche
+        final startsA = titleA.startsWith(query);
+        final startsB = titleB.startsWith(query);
+        if (startsA && !startsB) return -1;
+        if (!startsA && startsB) return 1;
+
+        // Priorité 3 : Position de la recherche dans le titre (plus tôt = mieux)
+        final indexA = titleA.indexOf(query);
+        final indexB = titleB.indexOf(query);
+        if (indexA != indexB) return indexA.compareTo(indexB);
+
+        // Priorité 4 : Ordre alphabétique
+        return titleA.compareTo(titleB);
+      });
+    }
+    if (_selectedTags.isNotEmpty) {
+      filtered = filtered.where((recipe) {
+        // La recette doit avoir AU MOINS UN des tags sélectionnés
+        return _selectedTags.any(
+          (selectedTag) => recipe.tags.contains(selectedTag),
+        );
+      }).toList();
+    }
+
+    // 3. FILTRER par TEMPS
+    if (_selectedTime != null) {
+      filtered = filtered.where((recipe) {
+        final duration = recipe.durationMinutes;
+
+        switch (_selectedTime) {
+          case '0-20':
+            return duration >= 0 && duration <= 20;
+          case '20-30':
+            return duration >= 20 && duration <= 30;
+          case '30-45':
+            return duration >= 30 && duration <= 45;
+          case '45-60':
+            return duration >= 45 && duration <= 60;
+          case '60-90':
+            return duration >= 60 && duration <= 90;
+          case '90+':
+            return duration >= 90;
+          default:
+            return true;
+        }
+        
+      }).toList();
+      filtered.sort((a, b) => a.durationMinutes.compareTo(b.durationMinutes));
+    }
+    if (_selectedMealType != null ) {
+  filtered = filtered.where((recipe) {
+    return recipe.mealType == _selectedMealType;
+  }).toList();
+}
+
+    return filtered;
   }
 
   Widget _buildSimpleFilterChip(
@@ -177,24 +254,26 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
     );
   }
 
-  void _showFilterBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => FilterBottomSheet(
-        selectedTags: _selectedTags,
-        selectedTime: _selectedTime,
-        onApply: (tags, selectedTime) {
-          setState(() {
-            _selectedTags = tags;
-            _selectedTime = selectedTime;
-            _applyFilters();
-          });
-        },
-      ),
-    );
-  }
+void _showFilterBottomSheet() {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => FilterBottomSheet(
+      selectedTags: _selectedTags,
+      selectedTime: _selectedTime,
+      selectedMealType: _selectedMealType,
+      onApply: (tags, selectedTime, selectedMealType) {
+        setState(() {
+          _selectedTags = tags;
+          _selectedTime = selectedTime;
+          _selectedMealType = selectedMealType;
+          _applyFilters();
+        });
+      },
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -252,11 +331,13 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
             child: RecipeSearchBar(
               controller: _searchController,
               onChanged: (value) {
-                // Implement search functionality if needed
+                setState(() {
+                  _searchQuery = value;
+                });
               },
             ),
           ),
-         
+
           Container(
             height: 50,
             color: Colors.white,
@@ -292,7 +373,6 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
             ),
           ),
 
-         
           Container(
             color: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -336,14 +416,35 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
 
                 const SizedBox(width: 12),
 
-               
-                if (_selectedTags.isNotEmpty || _selectedTime != null)
+                if (_selectedTags.isNotEmpty || _selectedTime != null || _selectedMealType != null)
                   Expanded(
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [
-                          
+                          if (_selectedMealType != null)
+  Padding(
+    padding: const EdgeInsets.only(right: 8),
+    child: Chip(
+      label: Text(_getMealTypeLabel(_selectedMealType!)),
+      deleteIcon: const Icon(Icons.close, size: 16),
+      onDeleted: () {
+        setState(() {
+          _selectedMealType = null;
+          _applyFilters();
+        });
+      },
+      backgroundColor: const Color(0xFFE65100).withOpacity(0.15),
+      labelStyle: const TextStyle(
+        fontSize: 13,
+        color: Color(0xFFE65100),
+        fontWeight: FontWeight.w500,
+      ),
+      deleteIconColor: const Color(0xFFE65100),
+      side: BorderSide.none,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    ),
+  ),
                           ..._selectedTags.map(
                             (tag) => Padding(
                               padding: const EdgeInsets.only(right: 8),
@@ -374,7 +475,6 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
                             ),
                           ),
 
-                         
                           if (_selectedTime != null)
                             Chip(
                               label: Text('$_selectedTime Min'),
@@ -417,6 +517,7 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
                     child: LayoutBuilder(
                       builder: (context, constraints) {
                         int crossAxisCount = 1;
+                        final filteredRecipes = _getFilteredRecipes();
                         if (constraints.maxWidth > 1200) {
                           crossAxisCount = 3;
                         } else if (constraints.maxWidth > 700) {
@@ -434,9 +535,9 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
                                     ? 1.1
                                     : 0.99,
                               ),
-                          itemCount: _recipes.length,
+                          itemCount: filteredRecipes.length,
                           itemBuilder: (context, index) {
-                            final recipe = _recipes[index];
+                            final recipe = filteredRecipes[index];
                             final id = recipe.id ?? '';
 
                             return RecipeCard(
@@ -491,9 +592,9 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
         onTap: (index) {
           if (index == 1) {
             Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const WeeklyplanPage()),
-          );
+              context,
+              MaterialPageRoute(builder: (_) => const WeeklyplanPage()),
+            );
           } else if (index == 2) {
             // Navigator to Einkauf
           }
@@ -531,4 +632,20 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
       ),
     );
   }
+  String _getMealTypeLabel(MealType type) {
+  switch (type) {
+    case MealType.fruehstueck:
+      return 'Frühstück';
+    case MealType.vorspeise:
+      return 'Vorspeise';
+    case MealType.hauptgericht:
+      return 'Hauptgericht';
+    case MealType.beilage:
+      return 'Beilage';
+    case MealType.dessert:
+      return 'Dessert';
+    case MealType.snack:
+      return 'Snack';
+  }
+}
 }

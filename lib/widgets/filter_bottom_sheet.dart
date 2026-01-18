@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
-
+import '../models/recipe.dart';
 class FilterBottomSheet extends StatefulWidget {
   final List<String> selectedTags;
   final String? selectedTime;
-  final Function(List<String> tags, String? selectedTime) onApply;
+  final MealType? selectedMealType;
+  final Function(List<String> tags, String? selectedTime, MealType? selectedMealType) onApply;
 
   const FilterBottomSheet({
     super.key,
     required this.selectedTags,
     required this.selectedTime,
+    this.selectedMealType,
     required this.onApply,
   });
 
@@ -19,6 +21,7 @@ class FilterBottomSheet extends StatefulWidget {
 class _FilterBottomSheetState extends State<FilterBottomSheet> {
   late List<String> _selectedTags;
   late String? _selectedTime;
+  late MealType? _selectedMealType;
 
   final List<String> _availableTags = [
     'Italienisch',
@@ -38,6 +41,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
     super.initState();
     _selectedTags = List.from(widget.selectedTags);
     _selectedTime = widget.selectedTime;
+    _selectedMealType = widget.selectedMealType;
   }
 
   @override
@@ -67,6 +71,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                     setState(() {
                       _selectedTags.clear();
                       _selectedTime = null;
+                      _selectedMealType = null;
                     });
                   },
                   child: Text(
@@ -84,7 +89,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                 ),
                 TextButton(
                   onPressed: () {
-                    widget.onApply(_selectedTags, _selectedTime);
+                    widget.onApply(_selectedTags, _selectedTime, _selectedMealType);
                     Navigator.pop(context);
                   },
                   child: const Text(
@@ -106,6 +111,45 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
+  'Mahlzeit',
+  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+),
+const SizedBox(height: 16),
+Wrap(
+  spacing: 8,
+  runSpacing: 8,
+  children: MealType.values.map((type) {
+    final isSelected = _selectedMealType == type;
+    final label = _getMealTypeLabel(type);
+    
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) {
+        setState(() {
+          _selectedMealType = selected ? type : null;
+        });
+      },
+      backgroundColor: Colors.white,
+      selectedColor: const Color(0xFFE65100).withOpacity(0.1),
+      labelStyle: TextStyle(
+        color: isSelected ? const Color(0xFFE65100) : Colors.grey[700],
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: isSelected ? const Color(0xFFE65100) : Colors.grey[300]!,
+          width: 1.5,
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    );
+  }).toList(),
+),
+const SizedBox(height: 32),
+
+                  const Text(
                     'Zubereitungszeit',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
@@ -113,7 +157,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: ['20', '30', '45', '60', '90', '120+'].map((
+                    children: ['0-20', '20-30', '30-45', '45-60', '60-90', '90+'].map((
                       time,
                     ) {
                       final isSelected = _selectedTime == time;
@@ -210,4 +254,20 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
       ),
     );
   }
+  String _getMealTypeLabel(MealType type) {
+  switch (type) {
+    case MealType.fruehstueck:
+      return 'Frühstück';
+    case MealType.vorspeise:
+      return 'Vorspeise';
+    case MealType.hauptgericht:
+      return 'Hauptgericht';
+    case MealType.beilage:
+      return 'Beilage';
+    case MealType.dessert:
+      return 'Dessert';
+    case MealType.snack:
+      return 'Snack';
+  }
+}
 }
