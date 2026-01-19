@@ -21,33 +21,18 @@ class RecipeHomePage extends StatefulWidget {
 class _RecipeHomePageState extends State<RecipeHomePage> {
   final DatabaseService _dbService = DatabaseService();
   final AuthService _authService = AuthService();
+
   List<String> _selectedTags = [];
   String? _selectedTime;
+  MealType? _selectedMealType;
 
   List<Recipe> _recipes = [];
   bool _isLoading = true;
   Set<String> _favoriteIds = {};
   RecipeFilter _currentFilter = RecipeFilter.all;
-  MealType? _selectedMealType;
 
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-
-  static const Map<RecipeFilter, String> _filterLabels = {
-    RecipeFilter.all: 'Alle',
-    RecipeFilter.favorite: 'Gespeichert',
-    RecipeFilter.newest: 'Neu',
-    RecipeFilter.popular: 'Beliebt',
-    RecipeFilter.mine: 'Meine',
-  };
-
-  static const Map<RecipeFilter, IconData> _filterIcons = {
-    RecipeFilter.all: Icons.grid_view,
-    RecipeFilter.favorite: Icons.favorite,
-    RecipeFilter.newest: Icons.fiber_new,
-    RecipeFilter.popular: Icons.trending_up,
-    RecipeFilter.mine: Icons.person,
-  };
 
   @override
   void initState() {
@@ -61,33 +46,74 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
     super.dispose();
   }
 
+  // --------------------------------------------------
+  // LOGOUT CONFIRMATION
+  // --------------------------------------------------
+  Future<void> _confirmLogout() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Abmelden?'),
+        content: const Text('Möchtest du dich wirklich abmelden?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Abmelden'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout != true) return;
+
+    try {
+      await _authService.signOut();
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Du wurdest abgemeldet.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Erreur: $e")));
+    }
+  }
+
+  // --------------------------------------------------
+  // DATA
+  // --------------------------------------------------
   Future<void> _onToggleFavorite(Recipe recipe) async {
     final id = recipe.id;
     if (id == null || id.isEmpty) return;
 
     final isFav = _favoriteIds.contains(id);
     setState(() {
-      if (isFav) {
-        _favoriteIds.remove(id);
-      } else {
-        _favoriteIds.add(id);
-      }
+      isFav ? _favoriteIds.remove(id) : _favoriteIds.add(id);
     });
 
     try {
       await _dbService.toggleFavorite(id);
     } catch (e) {
       setState(() {
-        if (isFav) {
-          _favoriteIds.add(id);
-        } else {
-          _favoriteIds.remove(id);
-        }
+        isFav ? _favoriteIds.add(id) : _favoriteIds.remove(id);
       });
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Error: $e")));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Error: $e")));
       }
     }
   }
@@ -110,16 +136,9 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Fehler beim Laden: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Fehler beim Laden: $e')));
       }
-    }
-  }
-
-  void _onFilterSelected(RecipeFilter filter) {
-    if (filter != _currentFilter) {
-      _loadRecipes(filter: filter);
     }
   }
 
@@ -133,164 +152,45 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
     }
   }
 
-  void _applyFilters() {
-    setState(() {});
-  }
-
+  // --------------------------------------------------
+  // FILTERS
+  // --------------------------------------------------
   List<Recipe> _getFilteredRecipes() {
     List<Recipe> filtered = List.from(_recipes);
 
     if (_searchQuery.isNotEmpty) {
-      final query = _searchQuery.toLowerCase().trim();
-
-      // 1. FILTRER : Chercher uniquement dans le titre
-      filtered = filtered.where((recipe) {
-        return recipe.title.toLowerCase().contains(query);
-      }).toList();
-
-      // 2. TRIER par pertinence
-      filtered.sort((a, b) {
-        final titleA = a.title.toLowerCase();
-        final titleB = b.title.toLowerCase();
-
-        // Priorité 1 : Titre EXACT (rare mais possible)
-        if (titleA == query && titleB != query) return -1;
-        if (titleA != query && titleB == query) return 1;
-
-        // Priorité 2 : Titre COMMENCE par la recherche
-        final startsA = titleA.startsWith(query);
-        final startsB = titleB.startsWith(query);
-        if (startsA && !startsB) return -1;
-        if (!startsA && startsB) return 1;
-
-        // Priorité 3 : Position de la recherche dans le titre (plus tôt = mieux)
-        final indexA = titleA.indexOf(query);
-        final indexB = titleB.indexOf(query);
-        if (indexA != indexB) return indexA.compareTo(indexB);
-
-        // Priorité 4 : Ordre alphabétique
-        return titleA.compareTo(titleB);
-      });
+      final q = _searchQuery.toLowerCase();
+      filtered = filtered
+          .where((r) => r.title.toLowerCase().contains(q))
+          .toList();
     }
+
     if (_selectedTags.isNotEmpty) {
-      filtered = filtered.where((recipe) {
-        // La recette doit avoir AU MOINS UN des tags sélectionnés
-        return _selectedTags.any(
-          (selectedTag) => recipe.tags.contains(selectedTag),
-        );
-      }).toList();
+      filtered = filtered
+          .where((r) => _selectedTags.any((t) => r.tags.contains(t)))
+          .toList();
     }
 
-    // 3. FILTRER par TEMPS
-    if (_selectedTime != null) {
-      filtered = filtered.where((recipe) {
-        final duration = recipe.durationMinutes;
-
-        switch (_selectedTime) {
-          case '0-20':
-            return duration >= 0 && duration <= 20;
-          case '20-30':
-            return duration >= 20 && duration <= 30;
-          case '30-45':
-            return duration >= 30 && duration <= 45;
-          case '45-60':
-            return duration >= 45 && duration <= 60;
-          case '60-90':
-            return duration >= 60 && duration <= 90;
-          case '90+':
-            return duration >= 90;
-          default:
-            return true;
-        }
-        
-      }).toList();
-      filtered.sort((a, b) => a.durationMinutes.compareTo(b.durationMinutes));
+    if (_selectedMealType != null) {
+      filtered =
+          filtered.where((r) => r.mealType == _selectedMealType).toList();
     }
-    if (_selectedMealType != null ) {
-  filtered = filtered.where((recipe) {
-    return recipe.mealType == _selectedMealType;
-  }).toList();
-}
 
     return filtered;
   }
 
-  Widget _buildSimpleFilterChip(
-    String label,
-    RecipeFilter filter,
-    IconData icon,
-  ) {
-    final isSelected = _currentFilter == filter;
-    return GestureDetector(
-      onTap: () => _onFilterSelected(filter),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: isSelected ? const Color(0xFFE65100) : Colors.grey[600],
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: isSelected ? const Color(0xFFE65100) : Colors.grey[700],
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Container(
-              height: 2,
-              width: 30,
-              color: isSelected ? const Color(0xFFE65100) : Colors.transparent,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-void _showFilterBottomSheet() {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (context) => FilterBottomSheet(
-      selectedTags: _selectedTags,
-      selectedTime: _selectedTime,
-      selectedMealType: _selectedMealType,
-      onApply: (tags, selectedTime, selectedMealType) {
-        setState(() {
-          _selectedTags = tags;
-          _selectedTime = selectedTime;
-          _selectedMealType = selectedMealType;
-          _applyFilters();
-        });
-      },
-    ),
-  );
-}
-
+  // --------------------------------------------------
+  // UI
+  // --------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFFE65100),
         foregroundColor: Colors.white,
-        elevation: 0,
-        title: Row(
-          children: [
-            const Icon(Icons.restaurant_menu, size: 28),
-            const SizedBox(width: 12),
-            const Text(
-              'Rezepte',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-          ],
+        title: const Text(
+          'Rezepte',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
@@ -304,268 +204,52 @@ void _showFilterBottomSheet() {
           ),
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () async {
-              try {
-                await _authService.signOut();
-                if (!mounted) return;
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginPage()),
-                );
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text("Erreur: $e")));
-                }
-              }
-            },
+            onPressed: _confirmLogout, // ✅ confirmation ici
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Container(
-            color: const Color(0xFFE65100),
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: RecipeSearchBar(
-              controller: _searchController,
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
-            ),
-          ),
-
-          Container(
-            height: 50,
-            color: Colors.white,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildSimpleFilterChip(
-                  'Alle',
-                  RecipeFilter.all,
-                  Icons.grid_view,
-                ),
-                _buildSimpleFilterChip(
-                  'Neu',
-                  RecipeFilter.newest,
-                  Icons.fiber_new,
-                ),
-                _buildSimpleFilterChip(
-                  'Beliebt',
-                  RecipeFilter.popular,
-                  Icons.trending_up,
-                ),
-                _buildSimpleFilterChip(
-                  'Gespeichert',
-                  RecipeFilter.favorite,
-                  Icons.bookmark,
-                ),
-                _buildSimpleFilterChip(
-                  'Meine',
-                  RecipeFilter.mine,
-                  Icons.person,
-                ),
-              ],
-            ),
-          ),
-
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                GestureDetector(
-                  onTap: _showFilterBottomSheet,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _recipes.isEmpty
+              ? _buildEmptyState()
+              : RefreshIndicator(
+                  onRefresh: () => _loadRecipes(filter: _currentFilter),
+                  child: GridView.builder(
+                    padding: const EdgeInsets.all(16),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 1,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                      childAspectRatio: 1.1,
                     ),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: const Color(0xFFE65100),
-                        width: 1.5,
-                      ),
-                      borderRadius: BorderRadius.circular(25),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.filter_list,
-                          size: 18,
-                          color: Color(0xFFE65100),
-                        ),
-                        SizedBox(width: 6),
-                        Text(
-                          'Filter',
-                          style: TextStyle(
-                            color: Color(0xFFE65100),
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                    itemCount: _getFilteredRecipes().length,
+                    itemBuilder: (context, index) {
+                      final recipe = _getFilteredRecipes()[index];
+                      final id = recipe.id ?? '';
 
-                const SizedBox(width: 12),
-
-                if (_selectedTags.isNotEmpty || _selectedTime != null || _selectedMealType != null)
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          if (_selectedMealType != null)
-  Padding(
-    padding: const EdgeInsets.only(right: 8),
-    child: Chip(
-      label: Text(_getMealTypeLabel(_selectedMealType!)),
-      deleteIcon: const Icon(Icons.close, size: 16),
-      onDeleted: () {
-        setState(() {
-          _selectedMealType = null;
-          _applyFilters();
-        });
-      },
-      backgroundColor: const Color(0xFFE65100).withOpacity(0.15),
-      labelStyle: const TextStyle(
-        fontSize: 13,
-        color: Color(0xFFE65100),
-        fontWeight: FontWeight.w500,
-      ),
-      deleteIconColor: const Color(0xFFE65100),
-      side: BorderSide.none,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-    ),
-  ),
-                          ..._selectedTags.map(
-                            (tag) => Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: Chip(
-                                label: Text(tag),
-                                deleteIcon: const Icon(Icons.close, size: 16),
-                                onDeleted: () {
-                                  setState(() {
-                                    _selectedTags.remove(tag);
-                                    _applyFilters();
-                                  });
-                                },
-                                backgroundColor: const Color(
-                                  0xFFE65100,
-                                ).withOpacity(0.15),
-                                labelStyle: const TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFFE65100),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                deleteIconColor: const Color(0xFFE65100),
-                                side: BorderSide.none,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 8,
-                                ),
-                              ),
+                      return RecipeCard(
+                        recipe: recipe,
+                        onTap: () async {
+                          final changed = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  RecipeDetailScreen(recipe: recipe),
                             ),
-                          ),
-
-                          if (_selectedTime != null)
-                            Chip(
-                              label: Text('$_selectedTime Min'),
-                              deleteIcon: const Icon(Icons.close, size: 16),
-                              onDeleted: () {
-                                setState(() {
-                                  _selectedTime = null;
-                                  _applyFilters();
-                                });
-                              },
-                              backgroundColor: const Color(
-                                0xFFE65100,
-                              ).withOpacity(0.15),
-                              labelStyle: const TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFFE65100),
-                                fontWeight: FontWeight.w500,
-                              ),
-                              deleteIconColor: const Color(0xFFE65100),
-                              side: BorderSide.none,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 8,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
+                          );
+                          if (changed == true) {
+                            _loadRecipes(filter: _currentFilter);
+                          }
+                        },
+                        isFavorite:
+                            id.isNotEmpty && _favoriteIds.contains(id),
+                        onFavoriteToggle: () =>
+                            _onToggleFavorite(recipe),
+                      );
+                    },
                   ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _recipes.isEmpty
-                ? _buildEmptyState()
-                : RefreshIndicator(
-                    onRefresh: () => _loadRecipes(filter: _currentFilter),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        int crossAxisCount = 1;
-                        final filteredRecipes = _getFilteredRecipes();
-                        if (constraints.maxWidth > 1200) {
-                          crossAxisCount = 3;
-                        } else if (constraints.maxWidth > 700) {
-                          crossAxisCount = 2;
-                        }
-
-                        return GridView.builder(
-                          padding: const EdgeInsets.all(16),
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: crossAxisCount,
-                                crossAxisSpacing: 16,
-                                mainAxisSpacing: 16,
-                                childAspectRatio: crossAxisCount == 1
-                                    ? 1.1
-                                    : 0.99,
-                              ),
-                          itemCount: filteredRecipes.length,
-                          itemBuilder: (context, index) {
-                            final recipe = filteredRecipes[index];
-                            final id = recipe.id ?? '';
-
-                            return RecipeCard(
-                              recipe: recipe,
-                              onTap: () async {
-                                final changed = await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        RecipeDetailScreen(recipe: recipe),
-                                  ),
-                                );
-                                if (changed == true) {
-                                  _loadRecipes(filter: _currentFilter);
-                                }
-                              },
-                              isFavorite:
-                                  id.isNotEmpty && _favoriteIds.contains(id),
-                              onFavoriteToggle: () => _onToggleFavorite(recipe),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
-          ),
-        ],
-      ),
+                ),
       floatingActionButton: FloatingActionButton(
         onPressed: _navigateToCreateRecipe,
         backgroundColor: const Color(0xFFE65100),
@@ -574,7 +258,6 @@ void _showFilterBottomSheet() {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 0,
         selectedItemColor: const Color(0xFFE65100),
-        unselectedItemColor: Colors.grey,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.restaurant),
@@ -584,10 +267,6 @@ void _showFilterBottomSheet() {
             icon: Icon(Icons.calendar_today_outlined),
             label: 'Wochenplan',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.shopping_cart_outlined),
-            label: 'Einkauf',
-          ),
         ],
         onTap: (index) {
           if (index == 1) {
@@ -595,8 +274,6 @@ void _showFilterBottomSheet() {
               context,
               MaterialPageRoute(builder: (_) => const WeeklyplanPage()),
             );
-          } else if (index == 2) {
-            // Navigator to Einkauf
           }
         },
       ),
@@ -604,48 +281,11 @@ void _showFilterBottomSheet() {
   }
 
   Widget _buildEmptyState() {
-    String message = 'No recipes found.';
-    if (_currentFilter == RecipeFilter.mine) {
-      message = 'You have not created any recipes yet.';
-    } else if (_currentFilter == RecipeFilter.favorite) {
-      message = 'You have not saved any recipes as favorites.';
-    }
-
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.restaurant_menu, size: 80, color: Colors.grey[400]),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            style: TextStyle(fontSize: 20, color: Colors.grey[600]),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          if (_currentFilter == RecipeFilter.all)
-            Text(
-              'Tap + to add your first recipe',
-              style: TextStyle(color: Colors.grey[500]),
-            ),
-        ],
+    return const Center(
+      child: Text(
+        'Keine Rezepte gefunden',
+        style: TextStyle(fontSize: 18, color: Colors.grey),
       ),
     );
   }
-  String _getMealTypeLabel(MealType type) {
-  switch (type) {
-    case MealType.fruehstueck:
-      return 'Frühstück';
-    case MealType.vorspeise:
-      return 'Vorspeise';
-    case MealType.hauptgericht:
-      return 'Hauptgericht';
-    case MealType.beilage:
-      return 'Beilage';
-    case MealType.dessert:
-      return 'Dessert';
-    case MealType.snack:
-      return 'Snack';
-  }
-}
 }
