@@ -83,7 +83,15 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
   /// Save week plan to database
   Future<void> _saveWeekPlan() async {
     try {
-      await _dbService.saveWeekPlan(_weekPlan);
+      // transform Map<String, Map<String, Recipe?>> to Map<String, Map<String, String?>>
+      final Map<String, Map<String, String?>> weekPlanIds = _weekPlan.map(
+        (day, meals) => MapEntry(
+          day,
+          meals.map((meal, recipe) => MapEntry(meal, recipe?.id)),
+        ),
+      );
+
+      await _dbService.saveWeekPlan(weekPlanIds);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

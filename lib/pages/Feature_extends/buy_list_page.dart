@@ -1,20 +1,39 @@
 import 'package:flutter/material.dart';
-import 'package:share_plus/share_plus.dart'; 
+import 'package:share_plus/share_plus.dart';
 import '../../models/recipe.dart';
 import '../../supabase/database_service.dart';
 
 class ShoppingItem {
+  String? id;
   String name;
-  String quantity;
+  double quantity;
   String unit;
   bool isBought;
 
   ShoppingItem({
+    this.id,
     required this.name,
-    this.quantity = '',
+    this.quantity = 0.0,
     this.unit = '',
     this.isBought = false,
   });
+
+  factory ShoppingItem.fromJson(Map<String, dynamic> json) {
+    return ShoppingItem(
+      id: json['id'].toString(),
+      name: json['name'] ?? '',
+      quantity: (json['quantity'] as num?)?.toDouble() ?? 0.0,
+      unit: json['unit'] ?? '',
+      isBought: json['is_bought'] ?? false,
+    );
+  }
+
+  String get formattedQuantity {
+    if (quantity == quantity.roundToDouble()) {
+      return quantity.toInt().toString();
+    }
+    return quantity.toString();
+  }
 }
 
 class BuyListPage extends StatefulWidget {
@@ -27,183 +46,202 @@ class BuyListPage extends StatefulWidget {
 class _BuyListPageState extends State<BuyListPage> {
   final DatabaseService _dbService = DatabaseService();
   final List<ShoppingItem> _shoppingList = [];
+  bool _isLoading = true;
   final Color _primaryColor = const Color(0xFFE65100);
 
-  // Add a manual item to the shopping list
+  @override
+  void initState() {
+    super.initState();
+    _loadShoppingList();
+  }
+
+  Future<void> _loadShoppingList() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      final List<Map<String, dynamic>> data = await _dbService.fetchShoppingList();
+      if (mounted) {
+        setState(() {
+          _shoppingList.clear();
+          _shoppingList.addAll(data.map((item) => ShoppingItem.fromJson(item)).toList());
+        });
+      }
+    } catch (e) {
+      debugPrint("Error: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // --- LOGIQUE D'IMPORTATION DEPUIS LES RECETTES ---
+  Future<void> _importFromRecipe() async {
+    setState(() => _isLoading = true);
+    try {
+      final recipes = await _dbService.fetchAllRecipes(filter: RecipeFilter.all);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      showModalBottomSheet(
+        context: context,
+        builder: (context) => ListView.builder(
+          itemCount: recipes.length,
+          itemBuilder: (context, index) {
+            final recipe = recipes[index];
+            return ListTile(
+              leading: recipe.imageUrl != null 
+                ? Image.network(recipe.imageUrl!, width: 40, height: 40, fit: BoxFit.cover)
+                : const Icon(Icons.restaurant),
+              title: Text(recipe.title),
+              onTap: () async {
+                Navigator.pop(context);
+                for (var ing in recipe.ingredients) {
+                  // Conversion texte -> nombre (ex: "200g" -> 200.0)
+                /*String cleanQty = ing.quantity.replaceAll(RegExp(r'[^0-9.]'), '');
+                 double qty = double.tryParse(cleanQty) ?? 1.0;*/
+                  
+                  await _dbService.addToShoppingList(ing.name,ing.quantity, ing.unit);
+                }
+                _loadShoppingList();
+              },
+            );
+          },
+        ),
+      );
+    } catch (e) {
+      setState(() => _isLoading = false);
+      debugPrint("Error importing: $e");
+    }
+  }
+
   void _addManualItem() {
     String name = '';
-    String qty = '';
+    double qty = 0.0;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Artikel hinzufügen'), //  Add item
+        title: const Text('Artikel hinzufügen'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              decoration: const InputDecoration(labelText: 'Name (z.B. Milch)'), //  Name (e.g. Milk)
+              decoration: const InputDecoration(labelText: 'Name'),
               onChanged: (val) => name = val,
             ),
             TextField(
-              decoration: const InputDecoration(labelText: 'Menge (z.B. 1L)'), // Quantity
-              onChanged: (val) => qty = val,
+              decoration: const InputDecoration(labelText: 'Menge'),
+              keyboardType: TextInputType.number,
+              onChanged: (val) => qty = double.tryParse(val) ?? 0.0,
             ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context), 
-            child: const Text('Abbrechen') //  Cancel
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
-            onPressed: () {
+            onPressed: () async {
               if (name.isNotEmpty) {
-                setState(() => _shoppingList.add(ShoppingItem(name: name, quantity: qty)));
-                Navigator.pop(context);
+                await _dbService.addToShoppingList(name, qty, "");
+                if (mounted) Navigator.pop(context);
+                _loadShoppingList();
               }
             },
-            child: const Text('Hinzufügen', style: TextStyle(color: Colors.white)), //  Add
+            child: const Text('Hinzufügen'),
           ),
         ],
       ),
     );
   }
 
-  // Select a recipe to import its ingredients
-  void _importFromRecipe() async {
-    final recipes = await _dbService.fetchAllRecipes(filter: RecipeFilter.all);
-    
-    if (!mounted) return;
+  void _showEditDialog(ShoppingItem item) {
+    final nameController = TextEditingController(text: item.name);
+    final qtyController = TextEditingController(text: item.formattedQuantity);
 
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      builder: (context) => AlertDialog(
+        title: const Text('Artikel bearbeiten'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Aus Rezept importieren', //  Import from recipe
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            Expanded(
-              child: ListView.builder(
-                itemCount: recipes.length,
-                itemBuilder: (context, index) {
-                  final recipe = recipes[index];
-                  return ListTile(
-                    leading: const Icon(Icons.restaurant, color: Color(0xFFE65100)),
-                    title: Text(recipe.title),
-                    onTap: () {
-                      setState(() {
-                        for (var ing in recipe.ingredients) {
-                          _shoppingList.add(ShoppingItem(
-                            name: ing.name,
-                            quantity: ing.quantity.toString(),
-                            unit: ing.unit,
-                          ));
-                        }
-                      });
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Zutaten hinzugefügt!')) //  Ingredients added
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
+            TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Name')),
+            TextField(controller: qtyController, decoration: const InputDecoration(labelText: 'Menge'), keyboardType: TextInputType.number),
           ],
         ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
+          ElevatedButton(
+            onPressed: () async {
+              double newQty = double.tryParse(qtyController.text) ?? 0.0;
+              await _dbService.updateShoppingItemDetails(item.id!, nameController.text, newQty);
+              if (mounted) Navigator.pop(context);
+              _loadShoppingList();
+            },
+            child: const Text('Speichern'),
+          ),
+        ],
       ),
     );
-  }
-
-  // Share the list via external apps
-  void _shareList() {
-    if (_shoppingList.isEmpty) return;
-    String listText = "🛒 Meine Einkaufsliste:\n"; // German: My shopping list
-    for (var item in _shoppingList) {
-      String status = item.isBought ? "[X]" : "[ ]";
-      listText += "$status ${item.name} (${item.quantity} ${item.unit})\n";
-    }
-    Share.share(listText);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Einkaufsliste', style: TextStyle(fontWeight: FontWeight.bold)), //  Shopping List
+        title: const Text('Einkaufsliste', style: TextStyle(color: Colors.white)),
         backgroundColor: _primaryColor,
-        foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.share),
-            onPressed: _shareList,
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_sweep),
-            onPressed: () => setState(() => _shoppingList.clear()),
-          ),
+            icon: const Icon(Icons.share, color: Colors.white),
+            onPressed: () {
+              String text = "Einkaufsliste:\n" + _shoppingList.map((e) => "- ${e.formattedQuantity}${e.unit} ${e.name}").join("\n");
+              Share.share(text);
+            }
+          )
         ],
       ),
-      body: _shoppingList.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.shopping_basket_outlined, size: 80, color: Colors.grey[400]),
-                  const SizedBox(height: 16),
-                  Text('Ihre Liste ist leer', style: TextStyle(color: Colors.grey[600], fontSize: 18)), // German: Your list is empty
-                ],
-              ),
-            )
-          : ListView.builder(
-              itemCount: _shoppingList.length,
-              itemBuilder: (context, index) {
-                final item = _shoppingList[index];
-                return Dismissible(
-                  key: UniqueKey(),
-                  background: Container(
-                    color: Colors.red, 
-                    alignment: Alignment.centerRight, 
-                    padding: const EdgeInsets.only(right: 20), 
-                    child: const Icon(Icons.delete, color: Colors.white)
-                  ),
-                  onDismissed: (direction) => setState(() => _shoppingList.removeAt(index)),
-                  child: CheckboxListTile(
-                    activeColor: _primaryColor,
-                    title: Text(item.name, 
-                      style: TextStyle(
-                        decoration: item.isBought ? TextDecoration.lineThrough : null,
-                        fontWeight: FontWeight.w500
-                      )),
-                    subtitle: Text("${item.quantity} ${item.unit}"),
-                    value: item.isBought,
-                    onChanged: (bool? value) {
-                      setState(() => item.isBought = value ?? false);
-                    },
-                  ),
-                );
-              },
-            ),
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator()) 
+        : ListView.builder(
+            itemCount: _shoppingList.length,
+            itemBuilder: (context, index) {
+              final item = _shoppingList[index];
+              return ListTile(
+                leading: Checkbox(
+                  value: item.isBought,
+                  activeColor: _primaryColor,
+                  onChanged: (val) async {
+                    setState(() => item.isBought = val!);
+                    await _dbService.updateShoppingItemStatus(item.id!, item.isBought);
+                  },
+                ),
+                title: Text(item.name, style: TextStyle(decoration: item.isBought ? TextDecoration.lineThrough : null)),
+                subtitle: Text("${item.formattedQuantity} ${item.unit}"),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => _showEditDialog(item)),
+                    IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () async {
+                      await _dbService.deleteShoppingItem(item.id!);
+                      _loadShoppingList();
+                    }),
+                  ],
+                ),
+              );
+            },
+          ),
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           FloatingActionButton.small(
-            heroTag: "btn1",
+            heroTag: "importBtn",
             onPressed: _importFromRecipe,
             backgroundColor: Colors.white,
-            tooltip: 'Aus Rezept importieren', //  Import from recipe
             child: Icon(Icons.restaurant, color: _primaryColor),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           FloatingActionButton(
-            heroTag: "btn2",
+            heroTag: "addBtn",
             onPressed: _addManualItem,
             backgroundColor: _primaryColor,
-            tooltip: 'Artikel hinzufügen', //  Add item
             child: const Icon(Icons.add, color: Colors.white),
           ),
         ],

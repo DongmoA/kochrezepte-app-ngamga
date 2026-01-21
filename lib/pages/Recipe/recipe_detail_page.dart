@@ -8,6 +8,7 @@ import '../../widgets/recipe_detail_items.dart';
 import '../../widgets/rating_widget.dart';
 import 'recipe_form_page.dart';
 
+
 class RecipeDetailScreen extends StatefulWidget {
   final Recipe recipe;
 
@@ -26,6 +27,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   late double _currentAverage;
   late int _currentTotal;
   bool _isLoadingStats = true;
+  bool _isFavorite = false;
 
   @override
   void initState() {
@@ -33,7 +35,114 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     _currentAverage = widget.recipe.averageRating;
     _currentTotal = widget.recipe.totalRatings;
     _refreshStats();
+    _checkFavoriteStatus();
   }
+
+
+// Check if recipe is favorite
+  Future<void> _checkFavoriteStatus() async {
+    try {
+      final isFav = await _dbService.isRecipeFavorite(widget.recipe.id!);
+      if (mounted) {
+        setState(() {
+          _isFavorite = isFav;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error check for favorite status: $e');
+    }
+  }
+
+  // Toggle favorite status
+Future<void> _handleToggleFavorite() async {
+    try {
+      await _dbService.toggleFavorite(widget.recipe.id!);
+      setState(() => _isFavorite = !_isFavorite);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_isFavorite ? 'Gespeichert!' : 'Entfernt!')),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error toggle favorite: $e");
+    }
+  }
+
+// Add recipe to weekly plan
+  Future<void> _showAddToWeeklyPlanDialog() async {
+    final List<String> days = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+    final List<String> meals = ['Frühstück', 'Mittagessen', 'Abendessen'];
+
+    String selectedDay = days[0];
+    String selectedMeal = meals[0];
+
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Zum Wochenplan hinzufügen"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DropdownButtonFormField<String>(
+              initialValue: selectedDay,
+              items: days.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+              onChanged: (val) => selectedDay = val!,
+              decoration: const InputDecoration(labelText: "Tag"),
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: selectedMeal,
+              items: meals.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
+              onChanged: (val) => selectedMeal = val!,
+              decoration: const InputDecoration(labelText: "Mahlzeit"),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Abbrechen")),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text("Hinzufügen")),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        // load current plan, update and save
+        final currentPlan = await _dbService.loadWeekPlan();
+        if (!currentPlan.containsKey(selectedDay)) currentPlan[selectedDay] = {};
+        currentPlan[selectedDay]![selectedMeal] = widget.recipe.id!;
+        
+        await _dbService.saveWeekPlan(currentPlan);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Zu $selectedDay ($selectedMeal) hinzugefügt!")),
+          );
+        }
+      } catch (e) {
+        debugPrint("Error saving to plan: $e");
+      }
+    }
+  }
+
+  void _handleAddToShoppingList() async {
+  try {
+      // On boucle sur tous les ingrédients de la recette pour les ajouter à la DB
+      for (var ingredient in widget.recipe.ingredients) {
+        await _dbService.addToShoppingList(
+          ingredient.name, 
+          ingredient.quantity, 
+          ingredient.unit
+        );
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Zutaten zur Einkaufsliste hinzugefügt!")),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error adding to shopping list: $e");
+    }
+  }
+
 
   Future<void> _refreshStats() async {
     try {
@@ -129,7 +238,7 @@ Check out this delicious recipe!
 
   Widget _buildCreatorInfo() {
    
-    if (widget.recipe.ownerName == null) return const SizedBox.shrink();
+    if (widget.recipe.ownername == null) return const SizedBox.shrink();
 
     return Padding(
       padding: const EdgeInsets.only(top: 12),
@@ -138,7 +247,7 @@ Check out this delicious recipe!
           const Icon(Icons.person_outline, size: 16, color: Colors.grey),
           const SizedBox(width: 6),
           Text(
-            'von ${widget.recipe.ownerName}',
+            'von ${widget.recipe.ownername}',
             style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
         ],
@@ -191,6 +300,60 @@ Check out this delicious recipe!
               onPressed: _confirmDelete,
             ),
           ],
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, color: Colors.white),
+            onSelected: (value) {
+              switch (value) {
+                case 'save': _handleToggleFavorite(); break;
+                case 'week': _showAddToWeeklyPlanDialog(); break;
+                case 'buy': _handleAddToShoppingList(); break;
+                case 'delete': _confirmDelete(); break;
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'save',
+                child: Row(
+                  children: [
+                    Icon(_isFavorite ? Icons.bookmark : Icons.bookmark_border, color: Colors.orange),
+                    const SizedBox(width: 10),
+                    const Text("Speichern"),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'week',
+                child: Row(
+                  children: [
+                    Icon(Icons.calendar_today, color: Colors.blue),
+                     SizedBox(width: 10),
+                    Text("Zu Wochenplan hinzufügen"),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'buy',
+                child: Row(
+                  children: [
+                    Icon(Icons.shopping_cart, color: Colors.green),
+                    const SizedBox(width: 10),
+                    Text("Zu Einkaufsliste hinzufügen"),
+                  ],
+                ),
+              ),
+              if (_isMine)
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete, color: Colors.red),
+                       SizedBox(width: 10),
+                      Text("Löschen", style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -466,7 +629,7 @@ Check out this delicious recipe!
     );
   }
 
-  Widget _buildNutritionMini(String value, String unit, String label) {
+  /*Widget _buildNutritionMini(String value, String unit, String label) {
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -480,7 +643,7 @@ Check out this delicious recipe!
       ),
     );
   }
-
+*/
   bool _hasNutritionInfo(Recipe recipe) {
     return recipe.calories != null ||
         recipe.protein != null ||

@@ -268,7 +268,7 @@ class DatabaseService {
   // ----------------------------------------
   // FAVORITES
   // ----------------------------------------
-  Future<void> toggleFavorite(String recipeId) async {
+Future<bool> isRecipeFavorite(String recipeId) async {
     try {
       final Map<String, dynamic>? existing = await _db
           .from('user_favorites')
@@ -277,8 +277,24 @@ class DatabaseService {
           .eq('recipe_id', recipeId)
           .maybeSingle();
 
-      if (existing != null) {
-        await _db.from('user_favorites').delete().eq('id', existing['id']);
+      return existing != null;
+    } catch (e) {
+      debugPrint("ERROR _isFavorite: $e");
+      return false;
+    }
+  }
+
+
+  Future<void> toggleFavorite(String recipeId) async {
+    try {
+      final bool currentlyFavorite = await isRecipeFavorite(recipeId);
+
+      if (currentlyFavorite) {
+        await _db
+            .from('user_favorites')
+            .delete()
+            .eq('user_id', userId)
+            .eq('recipe_id', recipeId);
       } else {
         await _db.from('user_favorites').insert({
           'user_id': userId,
@@ -308,8 +324,8 @@ class DatabaseService {
     }
   }
 
-  // ----------------------------------------
-  // FETCH RECIPES (filters)
+ // ----------------------------------------
+  // FETCH RECIPES 
   // ----------------------------------------
   Future<List<Recipe>> fetchAllRecipes({required RecipeFilter filter}) async {
     if (userId.isEmpty) return [];
@@ -327,8 +343,8 @@ class DatabaseService {
       List<dynamic> data;
 
       if (filter == RecipeFilter.favorite) {
-        // D'abord récupérer les IDs des recettes favorisées
-        final dynamic favoriteResponse = await _db
+        // 1. Get favorite IDs
+        final favoriteResponse = await _db
             .from('user_favorites')
             .select('recipe_id')
             .eq('user_id', userId);
@@ -340,74 +356,58 @@ class DatabaseService {
         if (favoriteRecipeIds.isEmpty) {
           data = [];
         } else {
-          // Puis récupérer les recettes complètes depuis recipes_with_owner
+          // 2. Fetch full data using 'dynamic' to avoid type errors
           dynamic query = _db
               .from('recipes_with_owner')
               .select(selectQuery)
               .inFilter('id', favoriteRecipeIds)
               .order('created_at', ascending: false);
-
-          final dynamic response = await query;
-          data = response as List<dynamic>;
+          
+          data = await query;
         }
       } else {
-       
+        // Declare as 'dynamic' to allow switching between Filter and Transform builders
         dynamic query = _db.from('recipes_with_owner').select(selectQuery);
 
         switch (filter) {
           case RecipeFilter.mine:
             query = query.eq('owner_id', userId).order('created_at', ascending: false);
             break;
+
           case RecipeFilter.newest:
-            query = query.order('created_at', ascending: false);
+            // Calculate the date for 1 days ago
+            final lastWeek = DateTime.now().subtract(const Duration(days: 1)).toIso8601String();
+            
+            // Apply filter: created_at Greater Than or Equal (gte) to lastWeek
+            query = query
+                .gte('created_at', lastWeek)
+                .order('created_at', ascending: false);
             break;
+
           case RecipeFilter.popular:
             query = query
                 .order('average_rating', ascending: false)
                 .order('total_ratings', ascending: false);
             break;
+
           case RecipeFilter.all:
           default:
             query = query.order('title', ascending: true);
             break;
         }
 
-        final dynamic response = await query;
+        final response = await query;
         data = response as List<dynamic>;
       }
 
-      // Enrichir les recettes avec les noms d'utilisateur depuis profiles
-      List<Recipe> recipes = [];
-      for (final json in data) {
-        final Map<String, dynamic> recipeJson = json as Map<String, dynamic>;
-        final ownerId = recipeJson['owner_id']?.toString();
-        
-        if (ownerId != null && ownerId.isNotEmpty) {
-          try {
-            final profileData = await _db
-                .from('profiles')
-                .select('username')
-                .eq('id', ownerId)
-                .maybeSingle();
-            
-            if (profileData != null) {
-              recipeJson['ownername'] = profileData['username'];
-            }
-          } catch (e) {
-            debugPrint("ERROR fetching profile for owner $ownerId: $e");
-          }
-        }
-        
-        recipes.add(Recipe.fromJson(recipeJson));
-      }
-      
-      return recipes;
+      // Convert the JSON list to a Recipe list efficiently
+      return data.map((json) => Recipe.fromJson(json as Map<String, dynamic>)).toList();
+
     } catch (e) {
       debugPrint("ERROR fetchAllRecipes(): $e");
       return [];
     }
   }
-
 
   // RATINGS
 
@@ -579,10 +579,8 @@ class DatabaseService {
     return mealMap[germanMeal] ?? germanMeal;
   }
 
-  Future<void> saveWeekPlan(Map<String, Map<String, Recipe?>> weekPlan) async {
-    final userId = _authService.getCurrentUserId();
-    if (userId == null) throw Exception('User not authenticated');
-
+  Future<void> saveWeekPlan(Map<String, Map<String, String?>> weekPlan) async {
+    
     try {
       final monday = _getMondayOfWeek(DateTime.now());
       final weekStartDate = '${monday.year}-${monday.month.toString().padLeft(2, '0')}-${monday.day.toString().padLeft(2, '0')}';
@@ -591,14 +589,14 @@ class DatabaseService {
 
       final List<Map<String, dynamic>> dataToInsert = [];
       weekPlan.forEach((day, meals) {
-        meals.forEach((mealType, recipe) {
-          if (recipe != null && recipe.id != null && recipe.id!.isNotEmpty) {
+        meals.forEach((mealType, recipeId) {
+          if (recipeId != null && recipeId.isNotEmpty) {
             dataToInsert.add({
               'user_id': userId,
               'week_start_date': weekStartDate,
               'day_of_week': _dayToEnglish(day),
               'meal_type': _mealToEnglish(mealType),
-              'recipe_id': recipe.id,
+              'recipe_id': recipeId,
             });
           }
         });
@@ -659,4 +657,67 @@ class DatabaseService {
       return null;
     }
   }
+
+// fetch shopping list items for current user
+Future<List<Map<String, dynamic>>> fetchShoppingList() async {
+  final res = await _db
+      .from('shopping_list')
+      .select()
+      .eq('user_id', userId)
+      .order('created_at', ascending: true);
+  return List<Map<String, dynamic>>.from(res);
+}
+
+// add a new item to shopping list
+Future<void> addToShoppingList(String name, double qty, String unit) async {
+  try {
+    // 1. Chercher si l'ingrédient existe déjà (et n'est pas encore acheté)
+    final existingItems = await _db
+        .from('shopping_list')
+        .select()
+        .eq('user_id', userId)
+        .eq('name', name)
+        .eq('is_bought', false);
+
+    if (existingItems.isNotEmpty) {
+      // 2. Si l'article existe, on additionne proprement les nombres
+      final existing = existingItems.first;
+      double currentQty = (existing['quantity'] as num).toDouble();
+      
+      await _db.from('shopping_list').update({
+        'quantity': currentQty + qty,
+      }).eq('id', existing['id']);
+      
+    } else {
+      // 3. Sinon, on crée une nouvelle ligne
+      await _db.from('shopping_list').insert({
+        'user_id': userId,
+        'name': name,
+        'quantity': qty,
+        'unit': unit,
+        'is_bought': false,
+      });
+    }
+  } catch (e) {
+    debugPrint("Erreur lors de l'ajout à la liste : $e");
+  }
+}
+// update item 
+Future<void> updateShoppingItemStatus(String id, bool isBought) async {
+  await _db.from('shopping_list').update({'is_bought': isBought}).eq('id', id);
+}
+
+// update items details
+Future<void> updateShoppingItemDetails(String id, String name, double quantity) async {
+  await _db.from('shopping_list').update({
+    'name': name,
+    'quantity': quantity,
+  }).eq('id', id);
+}
+
+// delete a shopping item
+Future<void> deleteShoppingItem(String id) async {
+  await _db.from('shopping_list').delete().eq('id', id);
+}
+
 }
