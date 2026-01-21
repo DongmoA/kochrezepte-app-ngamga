@@ -203,15 +203,14 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
           default:
             return true;
         }
-        
       }).toList();
       filtered.sort((a, b) => a.durationMinutes.compareTo(b.durationMinutes));
     }
-    if (_selectedMealType != null ) {
-  filtered = filtered.where((recipe) {
-    return recipe.mealType == _selectedMealType;
-  }).toList();
-}
+    if (_selectedMealType != null) {
+      filtered = filtered.where((recipe) {
+        return recipe.mealType == _selectedMealType;
+      }).toList();
+    }
 
     return filtered;
   }
@@ -255,26 +254,26 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
     );
   }
 
-void _showFilterBottomSheet() {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (context) => FilterBottomSheet(
-      selectedTags: _selectedTags,
-      selectedTime: _selectedTime,
-      selectedMealType: _selectedMealType,
-      onApply: (tags, selectedTime, selectedMealType) {
-        setState(() {
-          _selectedTags = tags;
-          _selectedTime = selectedTime;
-          _selectedMealType = selectedMealType;
-          _applyFilters();
-        });
-      },
-    ),
-  );
-}
+  void _showFilterBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => FilterBottomSheet(
+        selectedTags: _selectedTags,
+        selectedTime: _selectedTime,
+        selectedMealType: _selectedMealType,
+        onApply: (tags, selectedTime, selectedMealType) {
+          setState(() {
+            _selectedTags = tags;
+            _selectedTime = selectedTime;
+            _selectedMealType = selectedMealType;
+            _applyFilters();
+          });
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -417,35 +416,44 @@ void _showFilterBottomSheet() {
 
                 const SizedBox(width: 12),
 
-                if (_selectedTags.isNotEmpty || _selectedTime != null || _selectedMealType != null)
+                if (_selectedTags.isNotEmpty ||
+                    _selectedTime != null ||
+                    _selectedMealType != null)
                   Expanded(
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [
                           if (_selectedMealType != null)
-  Padding(
-    padding: const EdgeInsets.only(right: 8),
-    child: Chip(
-      label: Text(_getMealTypeLabel(_selectedMealType!)),
-      deleteIcon: const Icon(Icons.close, size: 16),
-      onDeleted: () {
-        setState(() {
-          _selectedMealType = null;
-          _applyFilters();
-        });
-      },
-      backgroundColor: const Color(0xFFE65100).withValues (alpha:  0.15),
-      labelStyle: const TextStyle(
-        fontSize: 13,
-        color: Color(0xFFE65100),
-        fontWeight: FontWeight.w500,
-      ),
-      deleteIconColor: const Color(0xFFE65100),
-      side: BorderSide.none,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-    ),
-  ),
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Chip(
+                                label: Text(
+                                  _getMealTypeLabel(_selectedMealType!),
+                                ),
+                                deleteIcon: const Icon(Icons.close, size: 16),
+                                onDeleted: () {
+                                  setState(() {
+                                    _selectedMealType = null;
+                                    _applyFilters();
+                                  });
+                                },
+                                backgroundColor: const Color(
+                                  0xFFE65100,
+                                ).withValues(alpha: 0.15),
+                                labelStyle: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFFE65100),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                deleteIconColor: const Color(0xFFE65100),
+                                side: BorderSide.none,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 8,
+                                ),
+                              ),
+                            ),
                           ..._selectedTags.map(
                             (tag) => Padding(
                               padding: const EdgeInsets.only(right: 8),
@@ -511,7 +519,7 @@ void _showFilterBottomSheet() {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _recipes.isEmpty
+                : _getFilteredRecipes().isEmpty
                 ? _buildEmptyState()
                 : RefreshIndicator(
                     onRefresh: () => _loadRecipes(filter: _currentFilter),
@@ -569,8 +577,8 @@ void _showFilterBottomSheet() {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _navigateToCreateRecipe,
-        backgroundColor: const Color(0xFFE65100),
-        child: const Icon(Icons.add),
+        backgroundColor: const Color(0xFFFF5722),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 0,
@@ -609,8 +617,15 @@ void _showFilterBottomSheet() {
   }
 
   Widget _buildEmptyState() {
+    final hasActiveFilters =
+        _searchQuery.isNotEmpty ||
+        _selectedTags.isNotEmpty ||
+        _selectedTime != null ||
+        _selectedMealType != null;
     String message = 'No recipes found.';
-    if (_currentFilter == RecipeFilter.mine) {
+    if (hasActiveFilters) {
+      message = 'No recipes match your filters.';
+    } else if (_currentFilter == RecipeFilter.mine) {
       message = 'You have not created any recipes yet.';
     } else if (_currentFilter == RecipeFilter.favorite) {
       message = 'You have not saved any recipes as favorites.';
@@ -630,27 +645,28 @@ void _showFilterBottomSheet() {
           const SizedBox(height: 8),
           if (_currentFilter == RecipeFilter.all)
             Text(
-              'Tap + to add your first recipe',
+              'Tap + to add a recipe',
               style: TextStyle(color: Colors.grey[500]),
             ),
         ],
       ),
     );
   }
+
   String _getMealTypeLabel(MealType type) {
-  switch (type) {
-    case MealType.fruehstueck:
-      return 'Frühstück';
-    case MealType.vorspeise:
-      return 'Vorspeise';
-    case MealType.hauptgericht:
-      return 'Hauptgericht';
-    case MealType.beilage:
-      return 'Beilage';
-    case MealType.dessert:
-      return 'Dessert';
-    case MealType.snack:
-      return 'Snack';
+    switch (type) {
+      case MealType.fruehstueck:
+        return 'Frühstück';
+      case MealType.vorspeise:
+        return 'Vorspeise';
+      case MealType.hauptgericht:
+        return 'Hauptgericht';
+      case MealType.beilage:
+        return 'Beilage';
+      case MealType.dessert:
+        return 'Dessert';
+      case MealType.snack:
+        return 'Snack';
+    }
   }
-}
 }

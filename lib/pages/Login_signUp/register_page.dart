@@ -94,107 +94,16 @@ class _RegisterPageState extends State<RegisterPage> {
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
-
-        // L'inscription a réussi, afficher le message de confirmation
         if (mounted) {
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (BuildContext context) {
-              return AlertDialog(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                title: Row(
-                  children: [
-                    Icon(
-                      Icons.mark_email_read_outlined,
-                      color: Color(0xFFE65100),
-                      size: 28,
-                    ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'E-Mail bestätigen',
-                        style: TextStyle(fontSize: 20),
-                      ),
-                    ),
-                  ],
-                ),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Wir haben eine Bestätigungs-E-Mail gesendet an:',
-                      style: TextStyle(fontSize: 14, color: Colors.black87),
-                    ),
-                    SizedBox(height: 12),
-                    Container(
-                      padding: EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.email, size: 20, color: Color(0xFFE65100)),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _emailController.text.trim(),
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFFE65100),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      'Bitte überprüfen Sie Ihr Postfach (auch den Spam-Ordner) und klicken Sie auf den Bestätigungslink, um Ihr Konto zu aktivieren.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 1.5,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop(); // Fermer le dialog
-                      Navigator.of(context).pop(); // Retourner au login
-                    },
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                    ),
-                    child: Text(
-                      'Verstanden',
-                      style: TextStyle(
-                        color: Color(0xFFE65100),
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Registrierung erfolgreich!')),
           );
+          Navigator.of(context).pop();
         }
       } catch (e) {
         if (mounted) {
           String errorMessage = 'Registrierung fehlgeschlagen';
 
-          // Personnaliser les messages d'erreur
           final errorString = e.toString().toLowerCase();
           if (errorString.contains('already') ||
               errorString.contains('registered')) {
