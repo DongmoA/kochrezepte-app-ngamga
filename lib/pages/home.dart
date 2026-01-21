@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:kochrezepte_app/pages/weeklyplan/weeklyplan_page.dart';
+import 'package:kochrezepte_app/pages/Feature_extends/weeklyplan_page.dart';
+import 'package:kochrezepte_app/pages/Feature_extends/buy_list_page.dart';
 import '../models/recipe.dart';
 import '../supabase/database_service.dart';
 import '../widgets/recipe_card.dart';
@@ -33,7 +34,7 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
-  static const Map<RecipeFilter, String> _filterLabels = {
+  /*static const Map<RecipeFilter, String> _filterLabels = {
     RecipeFilter.all: 'Alle',
     RecipeFilter.favorite: 'Gespeichert',
     RecipeFilter.newest: 'Neu',
@@ -47,7 +48,7 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
     RecipeFilter.newest: Icons.fiber_new,
     RecipeFilter.popular: Icons.trending_up,
     RecipeFilter.mine: Icons.person,
-  };
+  };*/
 
   @override
   void initState() {
@@ -434,7 +435,7 @@ void _showFilterBottomSheet() {
           _applyFilters();
         });
       },
-      backgroundColor: const Color(0xFFE65100).withOpacity(0.15),
+      backgroundColor: const Color(0xFFE65100).withValues (alpha:  0.15),
       labelStyle: const TextStyle(
         fontSize: 13,
         color: Color(0xFFE65100),
@@ -597,6 +598,10 @@ void _showFilterBottomSheet() {
             );
           } else if (index == 2) {
             // Navigator to Einkauf
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => BuyListPage()),
+            );
           }
         },
       ),
