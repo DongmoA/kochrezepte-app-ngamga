@@ -519,7 +519,7 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _recipes.isEmpty
+                : _getFilteredRecipes().isEmpty
                 ? _buildEmptyState()
                 : RefreshIndicator(
                     onRefresh: () => _loadRecipes(filter: _currentFilter),
@@ -617,8 +617,15 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
   }
 
   Widget _buildEmptyState() {
+    final hasActiveFilters =
+        _searchQuery.isNotEmpty ||
+        _selectedTags.isNotEmpty ||
+        _selectedTime != null ||
+        _selectedMealType != null;
     String message = 'No recipes found.';
-    if (_currentFilter == RecipeFilter.mine) {
+    if (hasActiveFilters) {
+      message = 'No recipes match your filters.';
+    } else if (_currentFilter == RecipeFilter.mine) {
       message = 'You have not created any recipes yet.';
     } else if (_currentFilter == RecipeFilter.favorite) {
       message = 'You have not saved any recipes as favorites.';
@@ -638,7 +645,7 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
           const SizedBox(height: 8),
           if (_currentFilter == RecipeFilter.all)
             Text(
-              'Tap + to add your first recipe',
+              'Tap + to add a recipe',
               style: TextStyle(color: Colors.grey[500]),
             ),
         ],
