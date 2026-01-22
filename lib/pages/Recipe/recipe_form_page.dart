@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:kochrezepte_app/supabase/nutrition_api_service.dart';
 
 import '../../models/recipe.dart';
 import '../../supabase/database_service.dart';
+import '../../supabase/nutrition_api_service.dart';
 
 class RecipeFormPage extends StatefulWidget {
   final Recipe? recipeToEdit;
@@ -27,7 +29,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
   final _proteinController = TextEditingController();
   final _carbsController = TextEditingController();
   final _fatController = TextEditingController();
-
 
   final _ingredientNameController = TextEditingController();
   final _ingredientQuantityController = TextEditingController();
@@ -140,10 +141,10 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Abbrechen'),
             style: TextButton.styleFrom(
               foregroundColor: Colors.grey[700],
             ),
+            child: const Text('Abbrechen'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -227,7 +228,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
     if (name.isEmpty || quantityText.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Bitte fülle alle Felder aus'),
+          content: Text('Bitte fülle die Menge des Zutats aus'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -258,16 +259,442 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
     });
   }
 
-  Future<void> _saveRecipe() async {
-    if (_titleController.text.trim().isEmpty) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text('Bitte gib einen Rezeptnamen ein'),
-      backgroundColor: Colors.red,
+  Future<void> _fetchNutritionData() async {
+  if (_ingredients.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Füge zuerst Zutaten hinzu'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+    return;
+  }
+
+  final servings = int.tryParse(_servingsController.text);
+  if (servings == null || servings <= 0) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Bitte gib die Anzahl der Portionen ein'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+    return;
+  }
+
+  final nutritionService = NutritionApiService();
+  
+  final selectedNutrition = <Map<String, dynamic>>[];
+  final notFoundList = <String>[];
+  final skippedList = <String>[]; // NEU: Liste der übersprungenen Zutaten
+  final selectedProductNames = <String, String>{};
+  bool userCancelled = false;
+
+  try {
+    for (final ing in _ingredients) {
+      if (userCancelled) break;
+      
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF5722)),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Suche nach "${ing.name}"...',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+      
+      if (selectedNutrition.isNotEmpty) {
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+      
+      final products = await nutritionService.searchProductsOFF(ing.name);
+
+      if (mounted) Navigator.pop(context);
+
+      if (products == null || products.isEmpty) {
+        notFoundList.add(ing.name);
+        
+        if (mounted) {
+          final shouldContinue = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Keine Produkte gefunden'),
+              content: Text('Für "${ing.name}" wurden keine Produkte gefunden.\n\nMöchtest du mit den anderen Zutaten fortfahren?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Abbrechen'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF5722),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Fortfahren'),
+                ),
+              ],
+            ),
+          ) ?? false;
+          
+          if (!shouldContinue) {
+            userCancelled = true;
+            break;
+          }
+        }
+        
+        continue;
+      }
+
+      dynamic selectedProduct;
+      
+      if (products.length == 1) {
+        selectedProduct = products[0];
+      } else {
+        if (mounted) {
+          selectedProduct = await showDialog<dynamic>(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => _ProductSelectionDialog(
+              ingredientName: ing.name,
+              products: products,
+            ),
+          );
+        }
+        
+        // Prüfe ob abgebrochen, übersprungen oder ausgewählt
+        if (selectedProduct == null) {
+          // Komplett abgebrochen
+          userCancelled = true;
+          break;
+        } else if (selectedProduct == 'skip') {
+          // Übersprungen - füge zur Skip-Liste hinzu
+          skippedList.add(ing.name);
+          continue;
+        }
+      }
+
+      // Wenn wir hier sind, haben wir ein gültiges Produkt
+      if (selectedProduct is! ProductSearchResult) {
+        continue;
+      }
+
+      // Speichere das ausgewählte Produkt
+      String productDisplay = selectedProduct.productName;
+      if (selectedProduct.brands != null) {
+        productDisplay += ' (${selectedProduct.brands})';
+      }
+      selectedProductNames[ing.name] = productDisplay;
+
+      final nutritionPer100g = selectedProduct.nutritionPer100g;
+      double quantityInGrams = ing.quantity;
+      
+      if (ing.unit == 'ml') {
+        quantityInGrams = ing.quantity;
+      } else if (ing.unit == 'Stück') {
+        quantityInGrams = ing.quantity * 50;
+      }
+
+      final factor = quantityInGrams / 100.0;
+      
+      selectedNutrition.add({
+        'name': ing.name,
+        'found': true,
+        'calories': nutritionPer100g['calories']! * factor,
+        'protein': nutritionPer100g['protein']! * factor,
+        'carbs': nutritionPer100g['carbs']! * factor,
+        'fat': nutritionPer100g['fat']! * factor,
+      });
+    }
+
+    if (userCancelled) {
+      return;
+    }
+
+    double totalCalories = 0;
+    double totalProtein = 0;
+    double totalCarbs = 0;
+    double totalFat = 0;
+
+    for (final result in selectedNutrition) {
+      totalCalories += result['calories'] as double;
+      totalProtein += result['protein'] as double;
+      totalCarbs += result['carbs'] as double;
+      totalFat += result['fat'] as double;
+    }
+
+    final foundCount = selectedNutrition.length;
+
+    if (foundCount == 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Keine Zutaten gefunden. Bitte Nährwerte manuell eingeben.'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+
+    final caloriesPerServing = totalCalories / servings;
+    final proteinPerServing = totalProtein / servings;
+    final carbsPerServing = totalCarbs / servings;
+    final fatPerServing = totalFat / servings;
+
+    if (mounted) {
+      setState(() {
+        _caloriesController.text = caloriesPerServing.round().toString();
+        _proteinController.text = proteinPerServing.toStringAsFixed(1);
+        _carbsController.text = carbsPerServing.toStringAsFixed(1);
+        _fatController.text = fatPerServing.toStringAsFixed(1);
+        _hasUnsavedChanges = true;
+      });
+
+      // Zeige Dialog mit ausgewählten Produkten
+      final allFound = foundCount == _ingredients.length && notFoundList.isEmpty && skippedList.isEmpty;
+      
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                allFound ? Icons.check_circle : Icons.warning,
+                color: allFound ? Colors.green : Colors.orange,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  allFound 
+                    ? 'Nährwerte berechnet!'
+                    : 'Teilweise berechnet',
+                  style: const TextStyle(fontSize: 18),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (selectedProductNames.isNotEmpty) ...[
+                  const Text(
+                    'Verwendete Produkte:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  const SizedBox(height: 8),
+                  ...selectedProductNames.entries.map((entry) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.check, size: 16, color: Colors.green),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  entry.key,
+                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                ),
+                                Text(
+                                  entry.value,
+                                  style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+                if (skippedList.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Divider(),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Übersprungen:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.orange),
+                  ),
+                  const SizedBox(height: 8),
+                  ...skippedList.map((name) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.skip_next, size: 16, color: Colors.orange),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+                if (notFoundList.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Divider(),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Nicht gefunden:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.red),
+                  ),
+                  const SizedBox(height: 8),
+                  ...notFoundList.map((name) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.close, size: 16, color: Colors.red),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 12),
+                Text(
+                  'Pro Portion ($servings Portionen):',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF5722).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildNutritionRow('Kalorien', '${caloriesPerServing.round()} kcal'),
+                      _buildNutritionRow('Protein', '${proteinPerServing.toStringAsFixed(1)} g'),
+                      _buildNutritionRow('Kohlenhydrate', '${carbsPerServing.toStringAsFixed(1)} g'),
+                      _buildNutritionRow('Fett', '${fatPerServing.toStringAsFixed(1)} g'),
+                    ],
+                  ),
+                ),
+                if (skippedList.isNotEmpty || notFoundList.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline, size: 16, color: Colors.orange),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Nährwerte sind unvollständig. Bitte manuell ergänzen.',
+                            style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF5722),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  } catch (e, stackTrace) {
+    if (mounted) {
+      for (int i = 0; i < 3 && Navigator.canPop(context); i++) {
+        Navigator.pop(context);
+      }
+    }
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Fehler: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+}
+
+Widget _buildNutritionRow(String label, String value) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 13)),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+        ),
+      ],
     ),
   );
-  return;
 }
+
+
+  Future<void> _saveRecipe() async {
+    if (_titleController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bitte gib einen Rezeptnamen ein'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -676,7 +1103,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
               const SizedBox(height: 16),
 
-              // Zutaten Card 
+              // Zutaten Card
               _buildCard(
                 title: 'Zutaten *',
                 child: Column(
@@ -813,7 +1240,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
               const SizedBox(height: 16),
 
-              // Zubereitung Card 
+              // Zubereitung Card
               _buildCard(
                 title: 'Zubereitung *',
                 child: Column(
@@ -893,11 +1320,38 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
               const SizedBox(height: 16),
 
-              // Nährwerte Card
+              // Nährwerte Card avec API
               _buildCard(
                 title: 'Nährwerte pro Portion',
                 child: Column(
                   children: [
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _ingredients.isEmpty
+                            ? null
+                            : _fetchNutritionData,
+                        icon: const Icon(Icons.auto_awesome, size: 18),
+                        label: const Text('Nährwerte automatisch berechnen (kostenlos)'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF5722),
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: Colors.grey[300],
+                          disabledForegroundColor: Colors.grey[600],
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Open Food Facts API',
+                      style: TextStyle(fontSize: 11, color: Colors.grey[600], fontStyle: FontStyle.italic),
+                    ),
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    const SizedBox(height: 16),
                     Row(
                       children: [
                         Expanded(
@@ -1067,7 +1521,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
               const SizedBox(height: 32),
 
-              // Bottom Buttons 
+              // Bottom Buttons
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -1430,6 +1884,131 @@ class _StepDialogState extends State<_StepDialog> {
             foregroundColor: Colors.white,
           ),
           child: Text(isEditing ? 'Aktualisieren' : 'Hinzufügen'),
+        ),
+      ],
+    );
+  }
+}
+
+
+
+
+// Produkt-Auswahl-Dialog
+class _ProductSelectionDialog extends StatelessWidget {
+  final String ingredientName;
+  final List<ProductSearchResult> products;
+
+  const _ProductSelectionDialog({
+    required this.ingredientName,
+    required this.products,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Produkt auswählen',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'für "$ingredientName"',
+            style: TextStyle(fontSize: 14, color: Colors.grey[600], fontWeight: FontWeight.normal),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: ListView.builder(
+          shrinkWrap: true,
+          itemCount: products.length,
+          itemBuilder: (context, index) {
+            final product = products[index];
+            final nutrition = product.nutritionPer100g;
+            
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              elevation: 2,
+              child: InkWell(
+                onTap: () => Navigator.pop(context, product),
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        product.productName,
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                      ),
+                      if (product.brands != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          product.brands!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      Text(
+                        'Pro 100g: ${nutrition['calories']!.round()}kcal | '
+                        'P: ${nutrition['protein']!.toStringAsFixed(1)}g | '
+                        'C: ${nutrition['carbs']!.toStringAsFixed(1)}g | '
+                        'F: ${nutrition['fat']!.toStringAsFixed(1)}g',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: LinearProgressIndicator(
+                              value: product.completeness / 100,
+                              backgroundColor: Colors.grey[200],
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                product.completeness > 70
+                                    ? Colors.green
+                                    : product.completeness > 40
+                                        ? Colors.orange
+                                        : Colors.red,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${product.completeness.toStringAsFixed(0)}%',
+                            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, null),
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.grey[700],
+          ),
+          child: const Text('Abbrechen'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, 'skip'),
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.orange,
+          ),
+          child: const Text('Überspringen'),
         ),
       ],
     );
