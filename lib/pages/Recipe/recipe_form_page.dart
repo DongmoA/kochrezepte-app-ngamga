@@ -20,7 +20,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
   final DatabaseService _dbService = DatabaseService();
 
   final _titleController = TextEditingController();
-  final _imageUrlController = TextEditingController();
   final _durationController = TextEditingController();
   final _servingsController = TextEditingController();
 
@@ -28,6 +27,11 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
   final _proteinController = TextEditingController();
   final _carbsController = TextEditingController();
   final _fatController = TextEditingController();
+
+
+  final _ingredientNameController = TextEditingController();
+  final _ingredientQuantityController = TextEditingController();
+  String _selectedIngredientUnit = 'g';
 
   Difficulty _selectedDifficulty = Difficulty.mittel;
   MealType? _selectedMealType;
@@ -43,40 +47,39 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
   XFile? _selectedImageFile;
 
   bool get _isEdit => widget.recipeToEdit != null;
-  final List<String> _availableTags = [
-  'Italienisch',
-  'Pasta',
-  'Schnell',
-  'Vegan',
-  'Gesund',
-  'Bowl',
-  'Fisch',
-  'Vegetarisch',
-  'Curry',
-  'Asiatisch',
-];
+  
+  List<String> get _availableTags => [
+    'Asiatisch',
+    'Bowl',
+    'Curry',
+    'Fisch',
+    'Gesund',
+    'Italienisch',
+    'Pasta',
+    'Schnell',
+    'Vegan',
+    'Vegetarisch',
+  ];
+
+  List<String> get _availableUnits => ['g', 'ml', 'Stück'];
 
   @override
   void initState() {
     super.initState();
-    
 
-    // Track changes for exit confirmation
     _titleController.addListener(_markAsChanged);
-    _imageUrlController.addListener(_markAsChanged);
     _durationController.addListener(_markAsChanged);
     _servingsController.addListener(_markAsChanged);
     _caloriesController.addListener(_markAsChanged);
     _proteinController.addListener(_markAsChanged);
     _carbsController.addListener(_markAsChanged);
     _fatController.addListener(_markAsChanged);
+    _ingredientNameController.addListener(_markAsChanged);
+    _ingredientQuantityController.addListener(_markAsChanged);
 
-    // Prefill on edit
     final r = widget.recipeToEdit;
-    
     if (r != null) {
       _titleController.text = r.title;
-      _imageUrlController.text = r.imageUrl ?? '';
       _durationController.text = r.durationMinutes.toString();
       _servingsController.text = r.servings.toString();
       _selectedDifficulty = r.difficulty;
@@ -107,19 +110,40 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
   }
 
   Future<bool> _onWillPop() async {
-    if (!_hasUnsavedChanges) return true;
+    final hasIngredientInput = _ingredientNameController.text.trim().isNotEmpty ||
+                                _ingredientQuantityController.text.trim().isNotEmpty;
+    
+    final hasAnyInput = _titleController.text.trim().isNotEmpty ||
+                        _durationController.text.trim().isNotEmpty ||
+                        _servingsController.text.trim().isNotEmpty ||
+                        _caloriesController.text.trim().isNotEmpty ||
+                        _proteinController.text.trim().isNotEmpty ||
+                        _carbsController.text.trim().isNotEmpty ||
+                        _fatController.text.trim().isNotEmpty ||
+                        _selectedImageFile != null ||
+                        _ingredients.isNotEmpty ||
+                        _steps.isNotEmpty ||
+                        _tags.isNotEmpty ||
+                        hasIngredientInput;
+    
+    if (!_hasUnsavedChanges && !hasAnyInput) return true;
 
     final shouldPop = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Änderungen verwerfen?'),
-        content: const Text(
-          'Du hast ungespeicherte Änderungen. Möchtest du die Seite wirklich verlassen?',
+        content: Text(
+          hasIngredientInput && !_hasUnsavedChanges
+              ? 'Du hast eine Zutat eingegeben, aber nicht hinzugefügt. Möchtest du die Seite wirklich verlassen?'
+              : 'Du hast ungespeicherte Änderungen. Möchtest du die Seite wirklich verlassen?',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Abbrechen'),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.grey[700],
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -173,7 +197,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
       if (image != null) {
         setState(() {
           _selectedImageFile = image;
-          _imageUrlController.clear();
           _hasUnsavedChanges = true;
         });
       }
@@ -193,22 +216,115 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
   void _removeImage() {
     setState(() {
       _selectedImageFile = null;
-      _imageUrlController.clear();
+      _hasUnsavedChanges = true;
+    });
+  }
+
+  void _addIngredientDirect() {
+    final name = _ingredientNameController.text.trim();
+    final quantityText = _ingredientQuantityController.text.trim();
+
+    if (name.isEmpty || quantityText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bitte fülle alle Felder aus'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final quantity = double.tryParse(quantityText.replaceAll(',', '.'));
+    if (quantity == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bitte gib eine gültige Menge ein'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _ingredients.add(RecipeIngredient(
+        name: name,
+        quantity: quantity,
+        unit: _selectedIngredientUnit,
+      ));
+      _ingredientNameController.clear();
+      _ingredientQuantityController.clear();
+      _selectedIngredientUnit = 'g';
       _hasUnsavedChanges = true;
     });
   }
 
   Future<void> _saveRecipe() async {
+    if (_titleController.text.trim().isEmpty) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('Bitte gib einen Rezeptnamen ein'),
+      backgroundColor: Colors.red,
+    ),
+  );
+  return;
+}
+
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bitte fülle alle Pflichtfelder aus')),
+        const SnackBar(
+          content: Text('Bitte fülle alle Pflichtfelder aus'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_selectedImageFile == null && (_isEdit == false || widget.recipeToEdit?.imageUrl == null)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bitte füge ein Bild hinzu'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_durationController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bitte gib die Zubereitungszeit ein'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_servingsController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bitte gib die Anzahl der Portionen ein'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_ingredients.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Füge mindestens eine Zutat hinzu'),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
 
     if (_steps.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Füge mindestens einen Schritt hinzu')),
+        const SnackBar(
+          content: Text('Füge mindestens einen Schritt hinzu'),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
@@ -226,8 +342,16 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
         if (finalImageUrl == null) {
           throw Exception('Fehler beim Hochladen des Bildes');
         }
-      } else if (_imageUrlController.text.trim().isNotEmpty) {
-        finalImageUrl = _imageUrlController.text.trim();
+      } else if (_isEdit && widget.recipeToEdit?.imageUrl != null) {
+        finalImageUrl = widget.recipeToEdit!.imageUrl;
+      }
+
+      int? calories;
+      if (_caloriesController.text.trim().isNotEmpty) {
+        calories = int.tryParse(_caloriesController.text.trim());
+        if (calories == null) {
+          throw Exception('Ungültige Kalorienangabe');
+        }
       }
 
       final recipe = Recipe(
@@ -242,9 +366,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
         ingredients: List.of(_ingredients),
         steps: List.of(_steps),
         tags: List.of(_tags),
-        calories: _caloriesController.text.trim().isEmpty
-            ? null
-            : int.parse(_caloriesController.text),
+        calories: calories,
         protein: _parseDouble(_proteinController.text),
         carbs: _parseDouble(_carbsController.text),
         fat: _parseDouble(_fatController.text),
@@ -267,6 +389,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
             content: Text(_isEdit
                 ? 'Rezept erfolgreich aktualisiert!'
                 : 'Rezept erfolgreich gespeichert!'),
+            backgroundColor: const Color(0xFFFF5722),
           ),
         );
 
@@ -276,24 +399,13 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
       if (mounted) {
         setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler beim Speichern: $e')),
+          SnackBar(
+            content: Text('Fehler beim Speichern: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
-  }
-
-  void _addIngredient() {
-    showDialog(
-      context: context,
-      builder: (context) => _IngredientDialog(
-        onAdd: (ingredient) {
-          setState(() {
-            _ingredients.add(ingredient);
-            _hasUnsavedChanges = true;
-          });
-        },
-      ),
-    );
   }
 
   void _editIngredient(int index, RecipeIngredient currentIngredient) {
@@ -342,8 +454,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
     );
   }
 
- 
-
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -384,46 +494,58 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildLabel('Rezeptname *'),
+                    _buildFieldLabel('Rezeptname *'),
                     TextFormField(
                       controller: _titleController,
-                      decoration: const InputDecoration(
+                      style: const TextStyle(fontWeight: FontWeight.normal, fontSize: 15),
+                      decoration: InputDecoration(
                         hintText: 'z.B. Spaghetti Carbonara',
-                        hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 8),
+                        hintStyle: const TextStyle(color: Colors.grey, fontSize: 14, fontWeight: FontWeight.normal),
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey[300]!),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey[300]!),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Color(0xFFFF5722), width: 2),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       ),
                       validator: (v) => (v == null || v.trim().isEmpty) ? 'Erforderlich' : null,
                     ),
-                    const Divider(height: 24),
+                    const SizedBox(height: 20),
                     
-                    _buildLabel('Bild URL'),
-                    if (_selectedImageFile == null && _imageUrlController.text.trim().isEmpty) ...[
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _imageUrlController,
-                              decoration: const InputDecoration(
-                                hintText: 'https://...',
-                                hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                                border: InputBorder.none,
-                                contentPadding: EdgeInsets.symmetric(vertical: 8),
+                    _buildFieldLabel('Bild *'),
+                    if (_selectedImageFile == null) ...[
+                      InkWell(
+                        onTap: _pickImageFile,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          height: 150,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey[300]!, width: 2, style: BorderStyle.solid),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.add_photo_alternate, size: 48, color: Colors.grey[400]),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Bild auswählen',
+                                style: TextStyle(color: Colors.grey[600], fontSize: 14),
                               ),
-                              onChanged: (value) {
-                                if (value.isNotEmpty) {
-                                  setState(() => _selectedImageFile = null);
-                                }
-                              },
-                            ),
+                            ],
                           ),
-                          IconButton(
-                            onPressed: _pickImageFile,
-                            icon: const Icon(Icons.add_photo_alternate),
-                            tooltip: 'Bild auswählen',
-                            color: const Color(0xFFFF5722),
-                          ),
-                        ],
+                        ),
                       ),
                     ] else ...[
                       SizedBox(
@@ -433,42 +555,29 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: _selectedImageFile != null
-                                  ? FutureBuilder<Uint8List>(
-                                      future: _selectedImageFile!.readAsBytes(),
-                                      builder: (context, snapshot) {
-                                        if (snapshot.hasData) {
-                                          return Image.memory(
-                                            snapshot.data!,
-                                            height: 150,
-                                            width: double.infinity,
-                                            fit: BoxFit.cover,
-                                          );
-                                        } else if (snapshot.hasError) {
-                                          return Container(
-                                            color: Colors.grey[300],
-                                            child: const Center(child: Icon(Icons.broken_image)),
-                                          );
-                                        } else {
-                                          return Container(
-                                            color: Colors.grey[200],
-                                            child: const Center(child: CircularProgressIndicator()),
-                                          );
-                                        }
-                                      },
-                                    )
-                                  : Image.network(
-                                      _imageUrlController.text.trim(),
+                              child: FutureBuilder<Uint8List>(
+                                future: _selectedImageFile!.readAsBytes(),
+                                builder: (context, snapshot) {
+                                  if (snapshot.hasData) {
+                                    return Image.memory(
+                                      snapshot.data!,
                                       height: 150,
                                       width: double.infinity,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) {
-                                        return Container(
-                                          color: Colors.grey[300],
-                                          child: const Center(child: Icon(Icons.broken_image)),
-                                        );
-                                      },
-                                    ),
+                                    );
+                                  } else if (snapshot.hasError) {
+                                    return Container(
+                                      color: Colors.grey[300],
+                                      child: const Center(child: Icon(Icons.broken_image)),
+                                    );
+                                  } else {
+                                    return Container(
+                                      color: Colors.grey[200],
+                                      child: const Center(child: CircularProgressIndicator()),
+                                    );
+                                  }
+                                },
+                              ),
                             ),
                             Positioned(
                               top: 8,
@@ -500,7 +609,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                         ),
                       ),
                     ],
-                    const Divider(height: 24),
+                    const SizedBox(height: 20),
                     
                     Row(
                       children: [
@@ -508,15 +617,11 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildLabel('Zubereitungszeit (Min) *'),
+                              _buildFieldLabel('Zubereitungszeit (Min) *'),
                               TextFormField(
                                 controller: _durationController,
-                                decoration: const InputDecoration(
-                                  hintText: '30',
-                                  hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                                  border: InputBorder.none,
-                                  contentPadding: EdgeInsets.symmetric(vertical: 8),
-                                ),
+                                style: const TextStyle(fontWeight: FontWeight.normal, fontSize: 15),
+                                decoration: _buildInputDecoration('30'),
                                 keyboardType: TextInputType.number,
                                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Erforderlich' : null,
@@ -524,20 +629,16 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 24),
+                        const SizedBox(width: 16),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildLabel('Portionen *'),
+                              _buildFieldLabel('Portionen *'),
                               TextFormField(
                                 controller: _servingsController,
-                                decoration: const InputDecoration(
-                                  hintText: '4',
-                                  hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                                  border: InputBorder.none,
-                                  contentPadding: EdgeInsets.symmetric(vertical: 8),
-                                ),
+                                style: const TextStyle(fontWeight: FontWeight.normal, fontSize: 15),
+                                decoration: _buildInputDecoration('4'),
                                 keyboardType: TextInputType.number,
                                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Erforderlich' : null,
@@ -545,29 +646,96 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 24),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    _buildFieldLabel('Schwierigkeit *'),
+                    DropdownButtonFormField<Difficulty>(
+                      value: _selectedDifficulty,
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Colors.black87),
+                      decoration: _buildInputDecoration(''),
+                      items: Difficulty.values.map((d) {
+                        return DropdownMenuItem(
+                          value: d,
+                          child: Text(_getDifficultyLabel(d)),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _selectedDifficulty = value;
+                            _hasUnsavedChanges = true;
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Zutaten Card 
+              _buildCard(
+                title: 'Zutaten *',
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildFieldLabel('Zutat'),
+                              TextFormField(
+                                controller: _ingredientNameController,
+                                style: const TextStyle(fontWeight: FontWeight.normal, fontSize: 15),
+                                decoration: _buildInputDecoration('z.B. Mehl'),
+                                textCapitalization: TextCapitalization.words,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildLabel('Schwierigkeit *'),
-                              DropdownButtonFormField<Difficulty>(
-                                value: _selectedDifficulty,
-                                decoration: const InputDecoration(
-                                  border: InputBorder.none,
-                                  contentPadding: EdgeInsets.symmetric(vertical: 8),
-                                ),
-                                items: Difficulty.values.map((d) {
-                                  return DropdownMenuItem(
-                                    value: d,
-                                    child: Text(_getDifficultyLabel(d), style: const TextStyle(fontSize: 14)),
+                              _buildFieldLabel('Menge'),
+                              TextFormField(
+                                controller: _ingredientQuantityController,
+                                style: const TextStyle(fontWeight: FontWeight.normal, fontSize: 15),
+                                decoration: _buildInputDecoration('250'),
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildFieldLabel('Einheit'),
+                              DropdownButtonFormField<String>(
+                                value: _selectedIngredientUnit,
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Colors.black87),
+                                decoration: _buildInputDecoration(''),
+                                items: _availableUnits.map((unit) {
+                                  return DropdownMenuItem<String>(
+                                    value: unit,
+                                    child: Text(unit),
                                   );
                                 }).toList(),
                                 onChanged: (value) {
                                   if (value != null) {
                                     setState(() {
-                                      _selectedDifficulty = value;
-                                      _hasUnsavedChanges = true;
+                                      _selectedIngredientUnit = value;
                                     });
                                   }
                                 },
@@ -575,112 +743,69 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                             ],
                           ),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Zutaten Card
-              _buildCard(
-                title: 'Zutaten',
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: TextFormField(
-                            decoration: const InputDecoration(
-                              hintText: 'Zutat',
-                              hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                              border: InputBorder.none,
-                            ),
-                            readOnly: true,
-                            onTap: _addIngredient,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: TextFormField(
-                            decoration: const InputDecoration(
-                              hintText: 'Menge',
-                              hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                              border: InputBorder.none,
-                            ),
-                            readOnly: true,
-                            onTap: _addIngredient,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: TextFormField(
-                            decoration: const InputDecoration(
-                              hintText: 'Einheit',
-                              hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                              border: InputBorder.none,
-                            ),
-                            readOnly: true,
-                            onTap: _addIngredient,
-                          ),
-                        ),
                         const SizedBox(width: 8),
-                        SizedBox(
-                          width: 48,
-                          height: 48,
-                          child: ElevatedButton(
-                            onPressed: _addIngredient,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFF5722),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              padding: EdgeInsets.zero,
-                              elevation: 0,
+                        Padding(
+                          padding: const EdgeInsets.only(top: 20),
+                          child: SizedBox(
+                            width: 48,
+                            height: 48,
+                            child: ElevatedButton(
+                              onPressed: _addIngredientDirect,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFFF5722),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                padding: EdgeInsets.zero,
+                                elevation: 0,
+                              ),
+                              child: const Icon(Icons.add, color: Colors.white),
                             ),
-                            child: const Icon(Icons.add, color: Colors.white),
                           ),
                         ),
                       ],
                     ),
                     if (_ingredients.isNotEmpty) ...[
-                      const Divider(height: 24),
-                      ..._ingredients.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final ing = entry.value;
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 2,
-                                child: Text('${ing.name}', style: const TextStyle(fontSize: 14)),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Text('${ing.quantity}', style: const TextStyle(fontSize: 14)),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Text(ing.unit, style: const TextStyle(fontSize: 14)),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.blue),
-                                onPressed: () => _editIngredient(index, ing),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline, size: 20, color: Colors.grey),
-                                onPressed: () {
-                                  setState(() {
-                                    _ingredients.removeAt(index);
-                                    _hasUnsavedChanges = true;
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
+                      const SizedBox(height: 16),
+                      const Divider(),
+                      const SizedBox(height: 12),
+                      ...() {
+                        final sortedIngredients = List<RecipeIngredient>.from(_ingredients)
+                          ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+                        return sortedIngredients.map((ing) {
+                          final index = _ingredients.indexOf(ing);
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: 2,
+                                  child: Text(ing.name, style: const TextStyle(fontSize: 14)),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text('${ing.quantity}', style: const TextStyle(fontSize: 14)),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(ing.unit, style: const TextStyle(fontSize: 14)),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.blue),
+                                  onPressed: () => _editIngredient(index, ing),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                                  onPressed: () {
+                                    setState(() {
+                                      _ingredients.removeAt(index);
+                                      _hasUnsavedChanges = true;
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList();
+                      }(),
                     ],
                   ],
                 ),
@@ -688,23 +813,30 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
               const SizedBox(height: 16),
 
-              // Zubereitung Card
+              // Zubereitung Card 
               _buildCard(
                 title: 'Zubereitung *',
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TextFormField(
-                      decoration: const InputDecoration(
-                        hintText: 'Schritt-für-Schritt Anleitung...',
-                        hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                        border: InputBorder.none,
+                    _buildFieldLabel('Schritt-für-Schritt Anleitung'),
+                    const SizedBox(height: 8),
+                    ElevatedButton.icon(
+                      onPressed: _addStep,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Schritt hinzufügen'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF5722),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        elevation: 0,
                       ),
-                      maxLines: 3,
-                      readOnly: true,
-                      onTap: _addStep,
                     ),
                     if (_steps.isNotEmpty) ...[
-                      const Divider(height: 24),
+                      const SizedBox(height: 16),
+                      const Divider(),
+                      const SizedBox(height: 12),
                       ..._steps.asMap().entries.map((entry) {
                         final index = entry.key;
                         final step = entry.value;
@@ -714,16 +846,16 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Container(
-                                width: 24,
-                                height: 24,
+                                width: 28,
+                                height: 28,
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFFF5722),
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(14),
                                 ),
                                 child: Center(
                                   child: Text(
                                     '${step.stepNumber}',
-                                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
                                   ),
                                 ),
                               ),
@@ -736,7 +868,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                                 onPressed: () => _editStep(index, step),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.delete_outline, size: 20, color: Colors.grey),
+                                icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
                                 onPressed: () {
                                   setState(() {
                                     _steps.removeAt(index);
@@ -761,198 +893,173 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
               const SizedBox(height: 16),
 
-             // Tags / Kategorien Card
-_buildCard(
-  title: 'Tags / Kategorien',
-  child: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      //  SECTION MAHLZEIT
-      const Text(
-        '🍽️ Mahlzeit (mehrere möglich)',
-        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87),
-      ),
-      const SizedBox(height: 12),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: MealType.values.map((type) {
-          final isSelected = _selectedMealType == type;
-          final label = _getMealTypeLabel(type);
-          
-          return ChoiceChip(
-            label: Text(label),
-            selected: isSelected,
-            onSelected: (selected) {
-              setState(() {
-                _selectedMealType = selected ? type : null;
-                _hasUnsavedChanges = true;
-              });
-            },
-            backgroundColor: Colors.grey[100],
-            selectedColor: const Color(0xFFFF5722).withOpacity(0.15),
-            labelStyle: TextStyle(
-              color: isSelected ? const Color(0xFFFF5722) : Colors.black87,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              fontSize: 13,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-              side: BorderSide(
-                color: isSelected ? const Color(0xFFFF5722) : Colors.grey[300]!,
-                width: 1.5,
-              ),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          );
-        }).toList(),
-      ),
-      
-      const SizedBox(height: 24),
-      const Divider(),
-      const SizedBox(height: 16),
-      
-      //  SECTION TAGS 
-     // 🏷️ SECTION TAGS
-const Text(
-  '🏷️ Tags',
-  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87),
-),
-const SizedBox(height: 12),
-
-// 🆕 Liste des tags prédéfinis avec FilterChip
-Wrap(
-  spacing: 8,
-  runSpacing: 8,
-  children: _availableTags.map((tag) {
-    final isSelected = _tags.contains(tag);
-    return FilterChip(
-      label: Text(tag),
-      selected: isSelected,
-      onSelected: (selected) {
-        setState(() {
-          if (selected) {
-            _tags.add(tag);
-          } else {
-            _tags.remove(tag);
-          }
-          _hasUnsavedChanges = true;
-        });
-      },
-      backgroundColor: Colors.grey[100],
-      selectedColor: const Color(0xFFFF5722).withOpacity(0.15),
-      checkmarkColor: const Color(0xFFFF5722),
-      labelStyle: TextStyle(
-        color: isSelected ? const Color(0xFFFF5722) : Colors.black87,
-        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-        fontSize: 13,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: isSelected ? const Color(0xFFFF5722) : Colors.grey[300]!,
-          width: 1.5,
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    );
-  }).toList(),
-),
-    ],
-  ),
-),
-              const SizedBox(height: 16),
-
               // Nährwerte Card
               _buildCard(
                 title: 'Nährwerte pro Portion',
-                child: Row(
+                child: Column(
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildLabel('Kalorien'),
-                          TextFormField(
-                            controller: _caloriesController,
-                            decoration: const InputDecoration(
-                              hintText: '0',
-                              hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(vertical: 8),
-                            ),
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-                          ],                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 24),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildLabel('Protein (g)'),
-                          TextFormField(
-                            controller: _proteinController,
-                            decoration: const InputDecoration(
-                              hintText: '0',
-                              hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(vertical: 8),
-                            ),
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            inputFormatters: [
-                            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildFieldLabel('Kalorien'),
+                              TextFormField(
+                                controller: _caloriesController,
+                                style: const TextStyle(fontWeight: FontWeight.normal, fontSize: 15),
+                                decoration: _buildInputDecoration('0'),
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
+                              ),
                             ],
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 24),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildLabel('Kohlenhydrate (g)'),
-                          TextFormField(
-                            controller: _carbsController,
-                            decoration: const InputDecoration(
-                              hintText: '0',
-                              hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(vertical: 8),
-                            ),
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            inputFormatters: [
-                             FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-                             ],
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildFieldLabel('Protein (g)'),
+                              TextFormField(
+                                controller: _proteinController,
+                                style: const TextStyle(fontWeight: FontWeight.normal, fontSize: 15),
+                                decoration: _buildInputDecoration('0'),
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 24),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildLabel('Fett (g)'),
-                          TextFormField(
-                            controller: _fatController,
-                            decoration: const InputDecoration(
-                              hintText: '0',
-                              hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(vertical: 8),
-                            ),
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            inputFormatters: [
-                             FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-                             ],
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildFieldLabel('Kohlenhydrate (g)'),
+                              TextFormField(
+                                controller: _carbsController,
+                                style: const TextStyle(fontWeight: FontWeight.normal, fontSize: 15),
+                                decoration: _buildInputDecoration('0'),
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildFieldLabel('Fett (g)'),
+                              TextFormField(
+                                controller: _fatController,
+                                style: const TextStyle(fontWeight: FontWeight.normal, fontSize: 15),
+                                decoration: _buildInputDecoration('0'),
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Tags Card
+              _buildCard(
+                title: 'Tags / Kategorien',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildFieldLabel('🍽️ Mahlzeit'),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: MealType.values.map((type) {
+                        final isSelected = _selectedMealType == type;
+                        final label = _getMealTypeLabel(type);
+                        
+                        return ChoiceChip(
+                          label: Text(label),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() {
+                              _selectedMealType = selected ? type : null;
+                              _hasUnsavedChanges = true;
+                            });
+                          },
+                          backgroundColor: Colors.grey[100],
+                          selectedColor: const Color(0xFFFF5722).withOpacity(0.15),
+                          labelStyle: TextStyle(
+                            color: isSelected ? const Color(0xFFFF5722) : Colors.black87,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                            fontSize: 13,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                              color: isSelected ? const Color(0xFFFF5722) : Colors.grey[300]!,
+                              width: 1.5,
+                            ),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        );
+                      }).toList(),
+                    ),
+                    
+                    const SizedBox(height: 20),
+                    const Divider(),
+                    const SizedBox(height: 16),
+                    
+                    _buildFieldLabel('🏷️ Tags'),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _availableTags.map((tag) {
+                        final isSelected = _tags.contains(tag);
+                        return FilterChip(
+                          label: Text(tag),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                _tags.add(tag);
+                              } else {
+                                _tags.remove(tag);
+                              }
+                              _hasUnsavedChanges = true;
+                            });
+                          },
+                          backgroundColor: Colors.grey[100],
+                          selectedColor: const Color(0xFFFF5722).withOpacity(0.15),
+                          checkmarkColor: const Color(0xFFFF5722),
+                          labelStyle: TextStyle(
+                            color: isSelected ? const Color(0xFFFF5722) : Colors.black87,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                            fontSize: 13,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                              color: isSelected ? const Color(0xFFFF5722) : Colors.grey[300]!,
+                              width: 1.5,
+                            ),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        );
+                      }).toList(),
                     ),
                   ],
                 ),
@@ -960,16 +1067,26 @@ Wrap(
 
               const SizedBox(height: 32),
 
-              // Bottom Buttons
+              // Bottom Buttons 
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: TextButton.styleFrom(
+                  OutlinedButton(
+                    onPressed: () async {
+                      final shouldPop = await _onWillPop();
+                      if (shouldPop && context.mounted) {
+                        Navigator.pop(context);
+                      }
+                    },
+                    style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      side: BorderSide(color: Colors.grey[400]!, width: 2),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
-                    child: const Text('Abbrechen', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                    child: const Text(
+                      'Abbrechen',
+                      style: TextStyle(color: Colors.grey, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
                   ),
                   const SizedBox(width: 16),
                   ElevatedButton(
@@ -1025,9 +1142,9 @@ Wrap(
           Text(
             title,
             style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFFF5722),
             ),
           ),
           const SizedBox(height: 20),
@@ -1037,17 +1154,39 @@ Wrap(
     );
   }
 
-  Widget _buildLabel(String text) {
+  Widget _buildFieldLabel(String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text,
         style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-          color: Colors.black54,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
         ),
       ),
+    );
+  }
+
+  InputDecoration _buildInputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: Colors.grey, fontSize: 14, fontWeight: FontWeight.normal),
+      filled: true,
+      fillColor: Colors.grey[50],
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Color(0xFFFF5722), width: 2),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     );
   }
 
@@ -1061,33 +1200,35 @@ Wrap(
         return 'Schwer';
     }
   }
+
   String _getMealTypeLabel(MealType type) {
-  switch (type) {
-    case MealType.fruehstueck:
-      return 'Frühstück';
-    case MealType.vorspeise:
-      return 'Vorspeise';
-    case MealType.hauptgericht:
-      return 'Hauptgericht';
-    case MealType.beilage:
-      return 'Beilage';
-    case MealType.dessert:
-      return 'Dessert';
-    case MealType.snack:
-      return 'Snack';
+    switch (type) {
+      case MealType.fruehstueck:
+        return 'Frühstück';
+      case MealType.vorspeise:
+        return 'Vorspeise';
+      case MealType.hauptgericht:
+        return 'Hauptgericht';
+      case MealType.beilage:
+        return 'Beilage';
+      case MealType.dessert:
+        return 'Dessert';
+      case MealType.snack:
+        return 'Snack';
+    }
   }
-}
 
   @override
   void dispose() {
     _titleController.dispose();
-    _imageUrlController.dispose();
     _durationController.dispose();
     _servingsController.dispose();
     _caloriesController.dispose();
     _proteinController.dispose();
     _carbsController.dispose();
     _fatController.dispose();
+    _ingredientNameController.dispose();
+    _ingredientQuantityController.dispose();
     super.dispose();
   }
 }
@@ -1110,16 +1251,17 @@ class _IngredientDialog extends StatefulWidget {
 class _IngredientDialogState extends State<_IngredientDialog> {
   final _nameController = TextEditingController();
   final _quantityController = TextEditingController();
-  final _unitController = TextEditingController();
+  String _selectedUnit = 'g';
+
+  List<String> get _availableUnits => ['g', 'ml', 'Stück'];
 
   @override
   void initState() {
     super.initState();
     if (widget.initialIngredient != null) {
       _nameController.text = widget.initialIngredient!.name;
-      _quantityController.text =
-          widget.initialIngredient!.quantity.toString();
-      _unitController.text = widget.initialIngredient!.unit;
+      _quantityController.text = widget.initialIngredient!.quantity.toString();
+      _selectedUnit = widget.initialIngredient!.unit;
     }
   }
 
@@ -1127,7 +1269,6 @@ class _IngredientDialogState extends State<_IngredientDialog> {
   void dispose() {
     _nameController.dispose();
     _quantityController.dispose();
-    _unitController.dispose();
     super.dispose();
   }
 
@@ -1154,10 +1295,23 @@ class _IngredientDialogState extends State<_IngredientDialog> {
               FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
             ],
           ),
-          TextField(
-            controller: _unitController,
-            decoration:
-                const InputDecoration(labelText: 'Einheit (z.B. g, ml, Stück)'),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            value: _selectedUnit,
+            decoration: const InputDecoration(labelText: 'Einheit'),
+            items: _availableUnits.map((unit) {
+              return DropdownMenuItem<String>(
+                value: unit,
+                child: Text(unit),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() {
+                  _selectedUnit = value;
+                });
+              }
+            },
           ),
         ],
       ),
@@ -1168,25 +1322,35 @@ class _IngredientDialogState extends State<_IngredientDialog> {
         ),
         ElevatedButton(
           onPressed: () {
-            if (_nameController.text.isNotEmpty &&
-                _quantityController.text.isNotEmpty &&
-                _unitController.text.isNotEmpty) {
-              final quantity = double.tryParse(
-                _quantityController.text.trim().replaceAll(',', '.'),
+            if (_nameController.text.isEmpty || _quantityController.text.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Bitte fülle alle Felder des Zutats aus'),
+                  backgroundColor: Colors.orange,
+                ),
               );
-              if (quantity != null) {
-                widget.onAdd(RecipeIngredient(
-                  name: _nameController.text.trim(),
-                  quantity: quantity,
-                  unit: _unitController.text.trim(),
-                ));
-                Navigator.pop(context);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Bitte gib eine gültige Menge ein')),
-                );
-              }
+              return;
             }
+
+            final quantity = double.tryParse(
+              _quantityController.text.trim().replaceAll(',', '.'),
+            );
+            if (quantity == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Bitte gib eine gültige Menge ein'),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+              return;
+            }
+
+            widget.onAdd(RecipeIngredient(
+              name: _nameController.text.trim(),
+              quantity: quantity,
+              unit: _selectedUnit,
+            ));
+            Navigator.pop(context);
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFFFF5722),
@@ -1271,5 +1435,3 @@ class _StepDialogState extends State<_StepDialog> {
     );
   }
 }
-
-
