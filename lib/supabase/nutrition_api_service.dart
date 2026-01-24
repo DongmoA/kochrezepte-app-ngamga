@@ -7,47 +7,55 @@ class ProductSearchResult {
   final String? brands;
   final Map<String, double> nutritionPer100g;
   final double completeness;
+  final String source; // 'USDA' oder 'Generic'
 
   ProductSearchResult({
     required this.productName,
     this.brands,
     required this.nutritionPer100g,
     required this.completeness,
+    this.source = 'USDA',
   });
 }
 
 class NutritionApiService {
-  static const String _offBaseUrl = 'https://world.openfoodfacts.org/cgi/search.pl';
-  static const Duration _timeout = Duration(seconds: 15);
+  // USDA FoodData Central API
+  static const String _usdaBaseUrl = 'https://api.nal.usda.gov/fdc/v1/foods/search';
+  static const String _usdaApiKey = 'uJsCUsiiGHXNNNadhlAJp5eWxkxHRjAlwHVB22kx'; 
+  
+  // LibreTranslate API für automatische Übersetzung
+  static const String _translateBaseUrl = 'https://libretranslate.com/translate';
+  
+  // MyMemory API als Fallback (kostenlos, kein Key nötig)
+  static const String _myMemoryBaseUrl = 'https://api.mymemory.translated.net/get';
+  
+  static const Duration _timeout = Duration(seconds: 10);
+  static const Duration _translateTimeout = Duration(seconds: 4);
   static const int _maxRetries = 2;
+  
+  // Cache für Übersetzungen
+  final Map<String, String> _translationCache = {};
 
   Future<List<ProductSearchResult>?> searchProductsOFF(String ingredientName, {int attempt = 1}) async {
     try {
-      final searchTerms = _prepareSearchTerms(ingredientName);
+      // Übersetze deutsche Zutaten ins Englische (automatisch)
+      final searchTerm = await _translateToEnglishAuto(ingredientName.toLowerCase().trim());
+      
+      debugPrint('🔍 USDA Suche: "$ingredientName" → "$searchTerm"');
       
       final queryParams = {
-        'search_terms': searchTerms,
-        'action': 'process',
-        'json': '1',
-        'page_size': '50',
-        'fields': 'product_name,nutriments,brands,completeness,categories',
-        'sort_by': 'unique_scans_n',
-        'tagtype_0': 'countries',
-        'tag_contains_0': 'contains',
-        'tag_0': 'germany',
+        'api_key': _usdaApiKey,
+        'query': searchTerm,
+        'pageSize': '25',
+        'dataType': 'Foundation,SR Legacy', // Grundlegende Lebensmittel
       };
 
-      final uri = Uri.parse(_offBaseUrl).replace(queryParameters: queryParams);
+      final uri = Uri.parse(_usdaBaseUrl).replace(queryParameters: queryParams);
       
-      debugPrint('🔍 Suche nach: "$ingredientName" (Versuch $attempt)');
-      debugPrint('📡 URL: $uri');
-
       final response = await http.get(
         uri,
         headers: {
-          'User-Agent': 'KochrezepteApp/1.0 (Mobile)',
           'Accept': 'application/json',
-          'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8',
         },
       ).timeout(_timeout);
 
@@ -57,117 +65,126 @@ class NutritionApiService {
         try {
           final data = jsonDecode(response.body);
           
-          final productCount = data['count'] ?? 0;
-          debugPrint('📦 Gefunden: $productCount Produkte');
+          final foods = data['foods'] as List?;
           
-          if (productCount == 0 && attempt == 1) {
-            debugPrint('⚠️ Keine Ergebnisse, versuche breitere Suche...');
-            await Future.delayed(const Duration(milliseconds: 800));
-            return searchProductsOFF(ingredientName, attempt: 2);
+          if (foods == null || foods.isEmpty) {
+            debugPrint('❌ Keine Ergebnisse gefunden');
+            if (attempt < _maxRetries) {
+              await Future.delayed(const Duration(seconds: 1));
+              return searchProductsOFF(ingredientName, attempt: attempt + 1);
+            }
+            return null;
           }
           
-          if (data['products'] != null && (data['products'] as List).isNotEmpty) {
-            final productsList = data['products'] as List;
-            
-            final List<ProductSearchResult> results = [];
-            final searchLower = ingredientName.toLowerCase().trim();
-            
-            for (int i = 0; i < productsList.length && results.length < 10; i++) {
-              final product = productsList[i];
-              try {
-                final productName = (product['product_name'] ?? '').toString().trim();
-                
-                if (productName.isEmpty) continue;
-                
-                final productNameLower = productName.toLowerCase();
-                
-                final relevanceScore = _calculateRelevance(searchLower, productNameLower);
-                
-                if (relevanceScore < 0.3) continue;
-                
-                final nutriments = product['nutriments'];
-                
-                if (nutriments == null || nutriments is! Map) {
-                  continue;
-                }
-                
-                final nutrimentsMap = Map<String, dynamic>.from(nutriments as Map);
+          debugPrint('📦 Gefunden: ${foods.length} Lebensmittel');
+          
+          final List<ProductSearchResult> results = [];
+          final List<Map<String, dynamic>> foodsToTranslate = [];
+          
+          // Sammle alle Lebensmittel mit Nährwerten
+          for (int i = 0; i < foods.length && foodsToTranslate.length < 10; i++) {
+            final food = foods[i];
+            try {
+              final description = (food['description'] ?? '').toString().trim();
               
-                final calories = _getDoubleValue(nutrimentsMap, [
-                  'energy-kcal_100g',
-                  'energy_100g',
-                  'energy-kcal',
-                ]);
-                
-                final protein = _getDoubleValue(nutrimentsMap, [
-                  'proteins_100g',
-                  'proteins',
-                ]);
-                
-                final carbs = _getDoubleValue(nutrimentsMap, [
-                  'carbohydrates_100g',
-                  'carbohydrates',
-                ]);
-                
-                final fat = _getDoubleValue(nutrimentsMap, [
-                  'fat_100g',
-                  'fat',
-                ]);
-
-                double finalCalories = calories;
-                if (finalCalories == 0 && nutrimentsMap['energy-kj_100g'] != null) {
-                  try {
-                    finalCalories = (nutrimentsMap['energy-kj_100g'] as num).toDouble() / 4.184;
-                  } catch (e) {
-                    debugPrint('⚠️ Fehler bei kJ Umrechnung: $e');
-                  }
-                }
-
-                if (finalCalories > 0 || protein > 0 || carbs > 0 || fat > 0) {
-                  final brands = (product['brands'] ?? '').toString();
-                  final completeness = (product['completeness'] ?? 0.0).toDouble();
-                  
-                  results.add(ProductSearchResult(
-                    productName: productName,
-                    brands: brands.isNotEmpty ? brands : null,
-                    nutritionPer100g: {
-                      'calories': finalCalories,
-                      'protein': protein,
-                      'carbs': carbs,
-                      'fat': fat,
-                    },
-                    completeness: completeness,
-                  ));
-                  
-                  debugPrint('✅ Produkt hinzugefügt: $productName (${finalCalories.round()}kcal)');
-                }
-              } catch (productError) {
-                debugPrint('⚠️ Fehler bei Produkt $i: $productError');
-                continue;
-              }
-            }
-            
-            if (results.isEmpty) {
-              debugPrint('❌ Keine verwertbaren Produkte gefunden');
-              if (attempt < _maxRetries) {
-                await Future.delayed(const Duration(seconds: 1));
-                return searchProductsOFF(ingredientName, attempt: attempt + 1);
-              }
-              return null;
-            }
-            
-            results.sort((a, b) {
-              final completenessDiff = b.completeness.compareTo(a.completeness);
-              if (completenessDiff != 0) return completenessDiff;
+              if (description.isEmpty) continue;
               
-              final aHasCalories = a.nutritionPer100g['calories']! > 0 ? 1 : 0;
-              final bHasCalories = b.nutritionPer100g['calories']! > 0 ? 1 : 0;
-              return bHasCalories.compareTo(aHasCalories);
-            });
-            
-            debugPrint('✨ Zurückgegeben: ${results.length} Produkte');
-            return results;
+              // Hole Nährwerte
+              final foodNutrients = food['foodNutrients'] as List?;
+              if (foodNutrients == null) continue;
+              
+              double calories = 0;
+              double protein = 0;
+              double carbs = 0;
+              double fat = 0;
+              
+              for (final nutrient in foodNutrients) {
+                final nutrientNumber = nutrient['nutrientNumber']?.toString() ?? '';
+                final value = (nutrient['value'] ?? 0).toDouble();
+                
+                switch (nutrientNumber) {
+                  case '208': // Energy (kcal)
+                    calories = value;
+                    break;
+                  case '203': // Protein
+                    protein = value;
+                    break;
+                  case '205': // Carbohydrates
+                    carbs = value;
+                    break;
+                  case '204': // Total lipid (fat)
+                    fat = value;
+                    break;
+                }
+              }
+              
+              // Nur hinzufügen wenn wir Nährwerte haben
+              if (calories > 0 || protein > 0 || carbs > 0 || fat > 0) {
+                final dataType = food['dataType']?.toString() ?? '';
+                final completeness = _calculateCompleteness(calories, protein, carbs, fat);
+                
+                foodsToTranslate.add({
+                  'description': description,
+                  'dataType': dataType,
+                  'completeness': completeness,
+                  'calories': calories,
+                  'protein': protein,
+                  'carbs': carbs,
+                  'fat': fat,
+                });
+              }
+            } catch (e) {
+              debugPrint('⚠️ Fehler bei Food $i: $e');
+              continue;
+            }
           }
+          
+          // Übersetze alle Beschreibungen PARALLEL
+          debugPrint('🔄 Übersetze ${foodsToTranslate.length} Ergebnisse parallel...');
+          final translationFutures = foodsToTranslate.map((foodData) {
+            return _translateToGerman(foodData['description'] as String);
+          }).toList();
+          
+          final germanDescriptions = await Future.wait(translationFutures);
+          
+          // Erstelle ProductSearchResults mit übersetzten Namen
+          for (int i = 0; i < foodsToTranslate.length; i++) {
+            final foodData = foodsToTranslate[i];
+            final germanDescription = germanDescriptions[i];
+            
+            results.add(ProductSearchResult(
+              productName: germanDescription,
+              brands: (foodData['dataType'] as String).isNotEmpty 
+                  ? 'USDA - ${foodData['dataType']}' 
+                  : 'USDA',
+              nutritionPer100g: {
+                'calories': foodData['calories'] as double,
+                'protein': foodData['protein'] as double,
+                'carbs': foodData['carbs'] as double,
+                'fat': foodData['fat'] as double,
+              },
+              completeness: foodData['completeness'] as double,
+              source: 'USDA',
+            ));
+            
+            debugPrint('✅ ${i+1}/${foodsToTranslate.length}: $germanDescription');
+          }
+          
+          if (results.isEmpty) {
+            debugPrint('❌ Keine verwertbaren Lebensmittel');
+            if (attempt < _maxRetries) {
+              await Future.delayed(const Duration(seconds: 1));
+              return searchProductsOFF(ingredientName, attempt: attempt + 1);
+            }
+            return null;
+          }
+          
+          // Sortiere nach Vollständigkeit
+          results.sort((a, b) => b.completeness.compareTo(a.completeness));
+          
+          debugPrint('✨ Zurückgegeben: ${results.length} Lebensmittel');
+          return results;
+          
         } catch (parseError) {
           debugPrint('❌ Parse Fehler: $parseError');
           if (attempt < _maxRetries) {
@@ -176,7 +193,7 @@ class NutritionApiService {
           }
         }
       } else if (response.statusCode == 429) {
-        debugPrint('⏳ Rate Limit erreicht, warte...');
+        debugPrint('⏳ Rate Limit erreicht');
         await Future.delayed(const Duration(seconds: 5));
         
         if (attempt < _maxRetries) {
@@ -206,127 +223,152 @@ class NutritionApiService {
     return null;
   }
 
-  String _prepareSearchTerms(String ingredient) {
-    String clean = ingredient.toLowerCase().trim();
+  /// Automatische Übersetzung DE→EN mit LibreTranslate und MyMemory
+  Future<String> _translateToEnglishAuto(String german) async {
+    final cleanGerman = german.toLowerCase().trim();
     
-    final synonyms = {
-      'mehl': 'weizenmehl OR mehl',
-      'zucker': 'zucker OR kristallzucker',
-      'öl': 'öl OR speiseöl',
-      'reis': 'reis OR basmatireis',
-      'nudeln': 'nudeln OR pasta',
-      'kartoffeln': 'kartoffeln OR kartoffel',
-      'tomaten': 'tomaten OR tomate',
-      'zwiebeln': 'zwiebeln OR zwiebel',
-    };
+    // Prüfe Cache
+    final cacheKey = 'de_en_$cleanGerman';
+    if (_translationCache.containsKey(cacheKey)) {
+      debugPrint('📝 Cache DE→EN: "$cleanGerman" → "${_translationCache[cacheKey]}"');
+      return _translationCache[cacheKey]!;
+    }
     
-    return synonyms[clean] ?? clean;
-  }
-
-  double _calculateRelevance(String search, String productName) {
-    final searchWords = search.split(' ').where((w) => w.length > 2).toList();
-    final productWords = productName.split(' ');
-    
-    if (productName.contains(search)) return 1.0;
-    
-    if (search.contains(productName)) return 0.9;
-    
-    int matchCount = 0;
-    for (final searchWord in searchWords) {
-      for (final productWord in productWords) {
-        if (productWord.contains(searchWord) || searchWord.contains(productWord)) {
-          matchCount++;
-          break;
+    // Versuch 1: LibreTranslate
+    try {
+      debugPrint('🌐 LibreTranslate DE→EN: "$cleanGerman"');
+      
+      final response = await http.post(
+        Uri.parse(_translateBaseUrl),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'q': cleanGerman,
+          'source': 'de',
+          'target': 'en',
+          'format': 'text',
+        }),
+      ).timeout(_translateTimeout);
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final translated = (data['translatedText'] ?? '').toString().toLowerCase().trim();
+        
+        if (translated.isNotEmpty && translated != cleanGerman) {
+          debugPrint('✅ LibreTranslate übersetzt DE→EN: "$cleanGerman" → "$translated"');
+          _translationCache[cacheKey] = translated;
+          return translated;
         }
       }
+      debugPrint('⚠️ LibreTranslate fehlgeschlagen, versuche MyMemory...');
+    } catch (e) {
+      debugPrint('⚠️ LibreTranslate Fehler: $e, versuche MyMemory...');
     }
     
-    if (searchWords.isEmpty) return 0.5;
-    
-    final wordMatchRatio = matchCount / searchWords.length;
-    
-    final clean1 = search.replaceAll(RegExp(r'[^a-z0-9]'), '');
-    final clean2 = productName.replaceAll(RegExp(r'[^a-z0-9]'), '');
-    
-    if (clean1.length >= 4 && clean2.length >= 4) {
-      if (clean1.substring(0, 4) == clean2.substring(0, 4)) {
-        return (wordMatchRatio + 0.8) / 2;
-      }
-    }
-    
-    return wordMatchRatio;
-  }
-
-  double _getDoubleValue(Map<String, dynamic> nutriments, List<String> possibleKeys) {
-    for (final key in possibleKeys) {
-      if (nutriments[key] != null) {
-        final value = nutriments[key];
-        if (value is num) {
-          return value.toDouble();
-        } else if (value is String) {
-          return double.tryParse(value) ?? 0.0;
+    // Versuch 2: MyMemory API als Fallback
+    try {
+      debugPrint('🌐 MyMemory DE→EN: "$cleanGerman"');
+      
+      final uri = Uri.parse(_myMemoryBaseUrl).replace(queryParameters: {
+        'q': cleanGerman,
+        'langpair': 'de|en',
+      });
+      
+      final response = await http.get(uri).timeout(_translateTimeout);
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final translated = (data['responseData']?['translatedText'] ?? '').toString().toLowerCase().trim();
+        
+        if (translated.isNotEmpty && translated != cleanGerman) {
+          debugPrint('✅ MyMemory übersetzt DE→EN: "$cleanGerman" → "$translated"');
+          _translationCache[cacheKey] = translated;
+          return translated;
         }
       }
+      debugPrint('⚠️ MyMemory fehlgeschlagen');
+    } catch (e) {
+      debugPrint('⚠️ MyMemory Fehler: $e');
     }
-    return 0.0;
+    
+    // Fallback: Original behalten
+    debugPrint('⚠️ Keine Übersetzung möglich, behalte Original: "$cleanGerman"');
+    return cleanGerman;
   }
 
-  bool _areSimilar(String s1, String s2) {
-    final clean1 = s1.replaceAll(RegExp(r'[^a-z0-9]'), '').toLowerCase();
-    final clean2 = s2.replaceAll(RegExp(r'[^a-z0-9]'), '').toLowerCase();
+  /// Automatische Übersetzung EN→DE mit LibreTranslate API und MyMemory Fallback
+  Future<String> _translateToGerman(String english) async {
+    final cleanEnglish = english.toLowerCase().trim();
     
-    if (clean2.length < 3) {
-      return clean1 == clean2;
+    // Prüfe Cache
+    final cacheKey = 'en_de_$cleanEnglish';
+    if (_translationCache.containsKey(cacheKey)) {
+      debugPrint('📝 Cache EN→DE: "$cleanEnglish" → "${_translationCache[cacheKey]}"');
+      return _translationCache[cacheKey]!;
     }
     
-    if (clean1.contains(clean2) || clean2.contains(clean1)) {
-      return true;
-    }
-    
-    if (clean1.length >= 4 && clean2.length >= 4) {
-      if (clean1.substring(0, 4) == clean2.substring(0, 4)) {
-        return true;
-      }
-    }
-    
-    if (clean1.length <= 8 && clean2.length <= 8) {
-      final distance = _levenshteinDistance(clean1, clean2);
-      final maxLen = clean1.length > clean2.length ? clean1.length : clean2.length;
-      final similarity = 1.0 - (distance / maxLen);
+    // Versuch 1: LibreTranslate
+    try {
+      final response = await http.post(
+        Uri.parse(_translateBaseUrl),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'q': cleanEnglish,
+          'source': 'en',
+          'target': 'de',
+          'format': 'text',
+        }),
+      ).timeout(_translateTimeout);
       
-      if (similarity >= 0.7) {
-        return true;
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final translated = (data['translatedText'] ?? '').toString().trim();
+        
+        if (translated.isNotEmpty && translated != cleanEnglish) {
+          _translationCache[cacheKey] = translated;
+          return translated;
+        }
       }
+    } catch (e) {
+      // Fehler stillschweigend ignorieren, versuche MyMemory
     }
     
-    return false;
+    // Versuch 2: MyMemory API als Fallback
+    try {
+      final uri = Uri.parse(_myMemoryBaseUrl).replace(queryParameters: {
+        'q': cleanEnglish,
+        'langpair': 'en|de',
+      });
+      
+      final response = await http.get(uri).timeout(_translateTimeout);
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final translated = (data['responseData']?['translatedText'] ?? '').toString().trim();
+        
+        if (translated.isNotEmpty && translated != cleanEnglish) {
+          _translationCache[cacheKey] = translated;
+          return translated;
+        }
+      }
+    } catch (e) {
+      // Fehler stillschweigend ignorieren
+    }
+    
+    // Fallback: Original behalten (Englisch)
+    return cleanEnglish;
   }
-  
-  int _levenshteinDistance(String s1, String s2) {
-    if (s1 == s2) return 0;
-    if (s1.isEmpty) return s2.length;
-    if (s2.isEmpty) return s1.length;
+
+  double _calculateCompleteness(double calories, double protein, double carbs, double fat) {
+    int fieldsFilled = 0;
+    if (calories > 0) fieldsFilled++;
+    if (protein > 0) fieldsFilled++;
+    if (carbs > 0) fieldsFilled++;
+    if (fat > 0) fieldsFilled++;
     
-    List<int> v0 = List<int>.generate(s2.length + 1, (i) => i);
-    List<int> v1 = List<int>.filled(s2.length + 1, 0);
-    
-    for (int i = 0; i < s1.length; i++) {
-      v1[0] = i + 1;
-      
-      for (int j = 0; j < s2.length; j++) {
-        final cost = s1[i] == s2[j] ? 0 : 1;
-        v1[j + 1] = [
-          v1[j] + 1,
-          v0[j + 1] + 1,
-          v0[j] + cost,
-        ].reduce((a, b) => a < b ? a : b);
-      }
-      
-      final temp = v0;
-      v0 = v1;
-      v1 = temp;
-    }
-    
-    return v0[s2.length];
+    return (fieldsFilled / 4.0) * 100;
   }
 }
