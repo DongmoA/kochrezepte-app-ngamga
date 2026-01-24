@@ -407,7 +407,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
           }
         }
 
-        // Wenn wir hier sind, haben wir ein gültiges Produkt
         if (selectedProduct is! ProductSearchResult) {
           continue;
         }
@@ -1255,7 +1254,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    // Zeile 2: Menge + Einheit + Button
                     Row(
                       children: [
                         Expanded(
@@ -1284,7 +1282,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 8), // Reduziert von 12
+                        const SizedBox(width: 8), 
                         Expanded(
                           flex: 2,
                           child: Column(
@@ -1316,11 +1314,11 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 6), // Reduziert von 8
+                        const SizedBox(width: 6), 
                         Padding(
                           padding: const EdgeInsets.only(top: 24),
                           child: SizedBox(
-                            width: 48, // Feste, kompakte Breite für Icon-Button
+                            width: 48,
                             height: 56,
                             child: ElevatedButton(
                               onPressed: _addIngredientDirect,
@@ -1330,13 +1328,13 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                padding: EdgeInsets.zero, // Kein extra Padding
+                                padding: EdgeInsets.zero, 
                                 elevation: 0,
                               ),
                               child: const Icon(
                                 Icons.add,
                                 size: 24,
-                              ), // Nur Icon statt Text
+                              ), 
                             ),
                           ),
                         ),
