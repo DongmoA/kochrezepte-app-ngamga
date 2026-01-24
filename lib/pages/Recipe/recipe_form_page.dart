@@ -1284,7 +1284,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 8), // Reduziert von 12
                         Expanded(
                           flex: 2,
                           child: Column(
@@ -1316,26 +1316,27 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6), // Reduziert von 8
                         Padding(
                           padding: const EdgeInsets.only(top: 24),
                           child: SizedBox(
+                            width: 48, // Feste, kompakte Breite für Icon-Button
                             height: 56,
-                            child: ElevatedButton.icon(
+                            child: ElevatedButton(
                               onPressed: _addIngredientDirect,
-                              icon: const Icon(Icons.add, size: 20),
-                              label: const Text('Hinzufügen'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFFF5722),
                                 foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
+                                padding: EdgeInsets.zero, // Kein extra Padding
                                 elevation: 0,
                               ),
+                              child: const Icon(
+                                Icons.add,
+                                size: 24,
+                              ), // Nur Icon statt Text
                             ),
                           ),
                         ),
