@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/recipe.dart';
 import '../../supabase/database_service.dart';
+import 'package:intl/intl.dart';
 
 class WeeklyplanPage extends StatefulWidget {
   const WeeklyplanPage({super.key});
@@ -12,7 +13,6 @@ class WeeklyplanPage extends StatefulWidget {
 class _WeeklyplanPageState extends State<WeeklyplanPage> {
   final DatabaseService _dbService = DatabaseService();
 
-  // Jours de la semaine
   final List<String> _weekDays = [
     'Montag',
     'Dienstag',
@@ -23,50 +23,121 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
     'Sonntag',
   ];
 
-  // Repas de la journée
+  final List<String> _weekDaysShort = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+
   final List<String> _meals = [
     'Frühstück',
     'Mittagessen',
     'Abendessen',
   ];
 
-  // Stockage des recettes sélectionnées pour chaque jour et repas
+  DateTime _currentWeekStart = DateTime.now();
   final Map<String, Map<String, Recipe?>> _weekPlan = {};
 
-  // Liste de toutes les recettes (chargées au démarrage)
   List<Recipe> _allRecipes = [];
   bool _isLoadingRecipes = false;
 
   @override
   void initState() {
     super.initState();
-    // Initialiser le plan vide
+    _currentWeekStart = _getWeekStart(DateTime.now());
     for (var day in _weekDays) {
       _weekPlan[day] = {};
       for (var meal in _meals) {
         _weekPlan[day]![meal] = null;
       }
     }
-    // Charger les recettes et le plan de la semaine
     _loadRecipes();
     _loadWeekPlan();
   }
 
-  /// Load saved week plan from database
+  DateTime _getWeekStart(DateTime date) {
+    final weekday = date.weekday;
+    return date.subtract(Duration(days: weekday - 1));
+  }
+
+  void _navigateWeek(bool forward) {
+    setState(() {
+      _currentWeekStart = _currentWeekStart.add(Duration(days: forward ? 7 : -7));
+    });
+    
+    _clearAndReloadWeekPlan();
+  }
+
+  void _goToCurrentWeek() {
+    setState(() {
+      _currentWeekStart = _getWeekStart(DateTime.now());
+    });
+    
+    _clearAndReloadWeekPlan();
+  }
+
+  void _clearAndReloadWeekPlan() {
+    for (var day in _weekDays) {
+      for (var meal in _meals) {
+        _weekPlan[day]![meal] = null;
+      }
+    }
+    
+    _loadWeekPlan();
+  }
+
+  String _getWeekRangeText() {
+    final weekEnd = _currentWeekStart.add(const Duration(days: 6));
+    final months = ['', 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+                    'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+    
+    final startDay = _currentWeekStart.day;
+    final startMonth = months[_currentWeekStart.month];
+    final endDay = weekEnd.day;
+    final endMonth = months[weekEnd.month];
+    
+    if (_currentWeekStart.month == weekEnd.month) {
+      return '$startDay. - $endDay. $endMonth';
+    } else {
+      return '$startDay. $startMonth - $endDay. $endMonth';
+    }
+  }
+
+  bool _isCurrentWeek() {
+    final today = DateTime.now();
+    final thisWeekStart = _getWeekStart(today);
+    return _currentWeekStart.year == thisWeekStart.year &&
+           _currentWeekStart.month == thisWeekStart.month &&
+           _currentWeekStart.day == thisWeekStart.day;
+  }
+
+  DateTime _getDateForDayIndex(int index) {
+    return _currentWeekStart.add(Duration(days: index));
+  }
+
+  bool _isToday(int dayIndex) {
+    final date = _getDateForDayIndex(dayIndex);
+    final today = DateTime.now();
+    return date.year == today.year &&
+           date.month == today.month &&
+           date.day == today.day;
+  }
+
   Future<void> _loadWeekPlan() async {
     try {
       final savedPlan = await _dbService.loadWeekPlan();
       
-      // Load full recipe objects for each saved recipe ID
-      for (var day in savedPlan.keys) {
-        for (var meal in savedPlan[day]!.keys) {
-          final recipeId = savedPlan[day]![meal];
-          if (recipeId != null && recipeId.isNotEmpty) {
-            final recipe = await _dbService.getRecipeById(recipeId);
-            if (recipe != null && mounted) {
-              setState(() {
-                _weekPlan[day]![meal] = recipe;
-              });
+      for (var dayIndex = 0; dayIndex < _weekDays.length; dayIndex++) {
+        final day = _weekDays[dayIndex];
+        final date = _getDateForDayIndex(dayIndex);
+        final dateKey = DateFormat('yyyy-MM-dd').format(date);
+        
+        if (savedPlan.containsKey(dateKey)) {
+          for (var meal in savedPlan[dateKey]!.keys) {
+            final recipeId = savedPlan[dateKey]![meal];
+            if (recipeId != null && recipeId.isNotEmpty) {
+              final recipe = await _dbService.getRecipeById(recipeId);
+              if (recipe != null && mounted) {
+                setState(() {
+                  _weekPlan[day]![meal] = recipe;
+                });
+              }
             }
           }
         }
@@ -75,39 +146,6 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Fehler beim Laden: $e')),
-        );
-      }
-    }
-  }
-
-  /// Save week plan to database
-  Future<void> _saveWeekPlan() async {
-    try {
-      // transform Map<String, Map<String, Recipe?>> to Map<String, Map<String, String?>>
-      final Map<String, Map<String, String?>> weekPlanIds = _weekPlan.map(
-        (day, meals) => MapEntry(
-          day,
-          meals.map((meal, recipe) => MapEntry(meal, recipe?.id)),
-        ),
-      );
-
-      await _dbService.saveWeekPlan(weekPlanIds);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Wochenplan erfolgreich gespeichert!'),
-            backgroundColor: Color(0xFFFF5722),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Fehler beim Speichern: $e'),
-            backgroundColor: Colors.red,
-          ),
         );
       }
     }
@@ -155,8 +193,48 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
     });
   }
 
+  Future<void> _saveWeekPlan() async {
+    try {
+      // Lade zuerst alle existierenden Daten
+      final savedPlan = await _dbService.loadWeekPlan();
+      
+      // Aktualisiere nur die aktuelle Woche
+      for (var dayIndex = 0; dayIndex < _weekDays.length; dayIndex++) {
+        final day = _weekDays[dayIndex];
+        final date = _getDateForDayIndex(dayIndex);
+        final dateKey = DateFormat('yyyy-MM-dd').format(date);
+        
+        // Erstelle oder aktualisiere den Eintrag für dieses Datum
+        savedPlan[dateKey] = _weekPlan[day]!.map(
+          (meal, recipe) => MapEntry(meal, recipe?.id),
+        );
+      }
+
+      // Speichere alles zurück (mit alten + neuen Daten)
+      await _dbService.saveWeekPlan(savedPlan);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Wochenplan erfolgreich gespeichert!'),
+            backgroundColor: Color(0xFFFF5722),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Fehler beim Speichern: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _generateShoppingList() {
-    // Collecter toutes les recettes sélectionnées
     final selectedRecipes = <Recipe>[];
     for (var day in _weekDays) {
       for (var meal in _meals) {
@@ -177,7 +255,6 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
       return;
     }
 
-    // TODO: Générer la liste de courses basée sur les recettes sélectionnées
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Einkaufsliste für ${selectedRecipes.length} Rezepte wird erstellt...'),
@@ -186,14 +263,22 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
     );
   }
 
+  Recipe? _getFirstRecipeOfDay(String day) {
+    for (var meal in _meals) {
+      final recipe = _weekPlan[day]?[meal];
+      if (recipe != null) return recipe;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         title: const Text(
           'Wochenplan',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
         backgroundColor: const Color(0xFFFF5722),
         elevation: 0,
@@ -201,90 +286,100 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.shopping_cart, color: Colors.white),
+            onPressed: _generateShoppingList,
+            tooltip: 'Einkaufsliste',
+          ),
+          if (!_isCurrentWeek())
+            IconButton(
+              icon: const Icon(Icons.today, color: Colors.white),
+              onPressed: _goToCurrentWeek,
+              tooltip: 'Heute',
+            ),
+        ],
       ),
       body: _isLoadingRecipes
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // Bouton "Einkaufsliste erstellen" en haut
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  child: ElevatedButton.icon(
-                    onPressed: _generateShoppingList,
-                    icon: const Icon(Icons.shopping_cart, size: 20),
-                    label: const Text(
-                      'Einkaufsliste erstellen',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFF5722),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 0,
-                    ),
-                  ),
-                ),
-
-                // Liste des jours avec leurs repas
+                _buildWeekHeader(),
                 Expanded(
                   child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.all(16),
                     itemCount: _weekDays.length,
-                    itemBuilder: (context, dayIndex) {
-                      final day = _weekDays[dayIndex];
-                      return _buildDayCard(day);
+                    itemBuilder: (context, index) {
+                      return _buildDayCard(index);
                     },
                   ),
                 ),
-
-                // Bouton "Speichern" en bas
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                        ),
-                        child: const Text('Abbrechen', style: TextStyle(color: Colors.grey, fontSize: 16)),
-                      ),
-                      const SizedBox(width: 16),
-                      ElevatedButton(
-                        onPressed: _saveWeekPlan,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFF5722),
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor: Colors.grey[300],
-                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          elevation: 0,
-                        ),
-                        child: const Text(
-                          'Speichern',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                _buildActionButtons(),
               ],
             ),
     );
   }
 
-  Widget _buildDayCard(String day) {
+  Widget _buildWeekHeader() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Diese Woche',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _getWeekRangeText(),
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                ),
+              ),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left),
+                    onPressed: () => _navigateWeek(false),
+                    color: const Color(0xFFFF5722),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.chevron_right),
+                    onPressed: () => _navigateWeek(true),
+                    color: const Color(0xFFFF5722),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDayCard(int dayIndex) {
+    final day = _weekDays[dayIndex];
+    final dayShort = _weekDaysShort[dayIndex];
+    final date = _getDateForDayIndex(dayIndex);
+    final isToday = _isToday(dayIndex);
+    final firstRecipe = _getFirstRecipeOfDay(day);
+    final hasAnyRecipe = _meals.any((meal) => _weekPlan[day]?[meal] != null);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -294,24 +389,133 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Nom du jour
-          Text(
-            day,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
+          InkWell(
+            onTap: hasAnyRecipe ? null : () => _selectRecipe(day, _meals[0]),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: isToday ? const Color(0xFFFF5722) : Colors.grey[100],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          dayShort,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: isToday ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${date.day}',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: isToday ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  
+                  if (firstRecipe != null && firstRecipe.imageUrl != null) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        firstRecipe.imageUrl!,
+                        width: 100,
+                        height: 64,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            width: 100,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[200],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.restaurant, color: Colors.grey),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  
+                  Expanded(
+                    child: firstRecipe != null
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                firstRecipe.title,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _getMealNameForRecipe(day, firstRecipe),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          )
+                        : Text(
+                            'Rezepte hinzufügen',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                  ),
+                  
+                  if (hasAnyRecipe)
+                    IconButton(
+                      icon: const Icon(Icons.shopping_basket),
+                      color: const Color(0xFFFF5722),
+                      onPressed: () {},
+                    ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 16),
-
-          // Liste des repas
-          ..._meals.map((meal) => _buildMealRow(day, meal)),
+          
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(
+              children: _meals.map((meal) => _buildMealRow(day, meal)).toList(),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  String _getMealNameForRecipe(String day, Recipe recipe) {
+    for (var meal in _meals) {
+      if (_weekPlan[day]?[meal]?.id == recipe.id) {
+        return meal;
+      }
+    }
+    return '';
   }
 
   Widget _buildMealRow(String day, String meal) {
@@ -319,68 +523,137 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
     final bool hasRecipe = selectedRecipe != null;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            meal,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: Colors.black54,
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: () => _selectRecipe(day, meal),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: hasRecipe ? Colors.white : const Color(0xFFFF5722).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: hasRecipe ? Colors.grey[200]! : const Color(0xFFFF5722).withOpacity(0.3),
             ),
           ),
-          const SizedBox(height: 6),
-          InkWell(
-            onTap: () => _selectRecipe(day, meal),
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: hasRecipe ? const Color(0xFFFF5722).withOpacity(0.1) : Colors.grey[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: hasRecipe ? const Color(0xFFFF5722).withOpacity(0.3) : Colors.grey[300]!,
-                ),
-              ),
-              child: Row(
-                children: [
-                  if (hasRecipe) ...[
-                    const Icon(
-                      Icons.restaurant,
-                      size: 18,
-                      color: Color(0xFFFF5722),
+          child: Row(
+            children: [
+              if (hasRecipe) ...[
+                if (selectedRecipe.imageUrl != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      selectedRecipe.imageUrl!,
+                      width: 50,
+                      height: 50,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.restaurant, size: 20, color: Colors.grey),
+                        );
+                      },
                     ),
-                    const SizedBox(width: 8),
-                  ],
-                  Expanded(
-                    child: Text(
-                      hasRecipe ? selectedRecipe.title : 'Rezept wählen',
+                  )
+                else
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.restaurant, size: 20, color: Colors.grey),
+                  ),
+                const SizedBox(width: 12),
+              ],
+              
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      meal,
                       style: TextStyle(
-                        fontSize: 14,
-                        color: hasRecipe ? Colors.black87 : Colors.grey[500],
-                        fontWeight: hasRecipe ? FontWeight.w500 : FontWeight.normal,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[600],
                       ),
                     ),
-                  ),
-                  if (hasRecipe)
-                    IconButton(
-                      icon: const Icon(Icons.close, size: 18),
-                      color: Colors.grey[600],
-                      onPressed: () => _removeRecipe(day, meal),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    )
-                  else
-                    Icon(
-                      Icons.arrow_forward_ios,
-                      size: 16,
-                      color: Colors.grey[400],
+                    const SizedBox(height: 2),
+                    Text(
+                      hasRecipe ? selectedRecipe.title : 'Rezept hinzufügen',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: hasRecipe ? FontWeight.w600 : FontWeight.normal,
+                        color: hasRecipe ? Colors.black87 : const Color(0xFFFF5722),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                ],
+                  ],
+                ),
               ),
+              
+              if (hasRecipe)
+                IconButton(
+                  icon: const Icon(Icons.close, size: 20),
+                  color: Colors.grey[600],
+                  onPressed: () => _removeRecipe(day, meal),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                )
+              else
+                Icon(
+                  Icons.add_circle_outline,
+                  size: 28,
+                  color: const Color(0xFFFF5722),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButtons() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+            child: const Text(
+              'Abbrechen',
+              style: TextStyle(color: Colors.grey, fontSize: 16),
+            ),
+          ),
+          const SizedBox(width: 16),
+          ElevatedButton(
+            onPressed: _saveWeekPlan,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF5722),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              elevation: 0,
+            ),
+            child: const Text(
+              'Speichern',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             ),
           ),
         ],
@@ -389,7 +662,6 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
   }
 }
 
-// Dialog pour sélectionner une recette avec recherche
 class _RecipeSelectionDialog extends StatefulWidget {
   final List<Recipe> recipes;
   final String mealTitle;
@@ -437,22 +709,21 @@ class _RecipeSelectionDialogState extends State<_RecipeSelectionDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         width: MediaQuery.of(context).size.width * 0.9,
         height: MediaQuery.of(context).size.height * 0.8,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Header
             Row(
               children: [
                 Expanded(
                   child: Text(
                     widget.mealTitle,
                     style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
@@ -464,7 +735,6 @@ class _RecipeSelectionDialogState extends State<_RecipeSelectionDialog> {
             ),
             const SizedBox(height: 16),
 
-            // Search Bar
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
@@ -473,28 +743,27 @@ class _RecipeSelectionDialogState extends State<_RecipeSelectionDialog> {
                 filled: true,
                 fillColor: Colors.grey[100],
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
               ),
             ),
             const SizedBox(height: 16),
 
-            // Recipe Count
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                '${_filteredRecipes.length} Rezepte gefunden',
+                '${_filteredRecipes.length} Rezepte',
                 style: TextStyle(
                   fontSize: 14,
+                  fontWeight: FontWeight.w500,
                   color: Colors.grey[600],
                 ),
               ),
             ),
             const SizedBox(height: 12),
 
-            // Recipe List
             Expanded(
               child: _filteredRecipes.isEmpty
                   ? Center(
@@ -527,44 +796,43 @@ class _RecipeSelectionDialogState extends State<_RecipeSelectionDialog> {
   Widget _buildRecipeListItem(Recipe recipe) {
     return InkWell(
       onTap: () => Navigator.pop(context, recipe),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
+        margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.grey[50],
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey[300]!),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!),
         ),
         child: Row(
           children: [
-            // Image
             ClipRRect(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(8),
               child: recipe.imageUrl != null && recipe.imageUrl!.isNotEmpty
                   ? Image.network(
                       recipe.imageUrl!,
-                      width: 60,
-                      height: 60,
+                      width: 70,
+                      height: 70,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
-                          width: 60,
-                          height: 60,
-                          color: Colors.grey[300],
+                          width: 70,
+                          height: 70,
+                          color: Colors.grey[200],
                           child: const Icon(Icons.restaurant, color: Colors.grey),
                         );
                       },
                     )
                   : Container(
-                      width: 60,
-                      height: 60,
-                      color: Colors.grey[300],
+                      width: 70,
+                      height: 70,
+                      color: Colors.grey[200],
                       child: const Icon(Icons.restaurant, color: Colors.grey),
                     ),
             ),
             const SizedBox(width: 12),
 
-            // Info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -572,13 +840,13 @@ class _RecipeSelectionDialogState extends State<_RecipeSelectionDialog> {
                   Text(
                     recipe.title,
                     style: const TextStyle(
-                      fontSize: 15,
+                      fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Row(
                     children: [
                       Icon(Icons.access_time, size: 14, color: Colors.grey[600]),
@@ -591,7 +859,7 @@ class _RecipeSelectionDialogState extends State<_RecipeSelectionDialog> {
                       Icon(Icons.restaurant_menu, size: 14, color: Colors.grey[600]),
                       const SizedBox(width: 4),
                       Text(
-                        '${recipe.servings} Portionen',
+                        '${recipe.servings} Port.',
                         style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                       ),
                     ],
@@ -602,16 +870,17 @@ class _RecipeSelectionDialogState extends State<_RecipeSelectionDialog> {
                       spacing: 4,
                       children: recipe.tags.take(3).map((tag) {
                         return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFF5722).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
                             tag,
                             style: const TextStyle(
                               fontSize: 11,
                               color: Color(0xFFFF5722),
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         );
@@ -622,7 +891,6 @@ class _RecipeSelectionDialogState extends State<_RecipeSelectionDialog> {
               ),
             ),
 
-            // Arrow
             Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
           ],
         ),

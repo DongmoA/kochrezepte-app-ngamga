@@ -18,68 +18,72 @@ class ProductSearchResult {
 
 class NutritionApiService {
   static const String _offBaseUrl = 'https://world.openfoodfacts.org/cgi/search.pl';
-  static const Duration _timeout = Duration(seconds: 10);
-  static const int _maxRetries = 3;
+  static const Duration _timeout = Duration(seconds: 15);
+  static const int _maxRetries = 2;
 
   Future<List<ProductSearchResult>?> searchProductsOFF(String ingredientName, {int attempt = 1}) async {
     try {
+      final searchTerms = _prepareSearchTerms(ingredientName);
+      
       final queryParams = {
-        'search_terms': ingredientName,
+        'search_terms': searchTerms,
         'action': 'process',
         'json': '1',
-        'page_size': '20',
-        'fields': 'product_name,nutriments,brands,completeness',
+        'page_size': '50',
+        'fields': 'product_name,nutriments,brands,completeness,categories',
         'sort_by': 'unique_scans_n',
+        'tagtype_0': 'countries',
+        'tag_contains_0': 'contains',
+        'tag_0': 'germany',
       };
 
       final uri = Uri.parse(_offBaseUrl).replace(queryParameters: queryParams);
+      
+      debugPrint('🔍 Suche nach: "$ingredientName" (Versuch $attempt)');
+      debugPrint('📡 URL: $uri');
 
       final response = await http.get(
         uri,
         headers: {
-          'User-Agent': 'KochrezepteApp/1.0',
+          'User-Agent': 'KochrezepteApp/1.0 (Mobile)',
           'Accept': 'application/json',
+          'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8',
         },
       ).timeout(_timeout);
+
+      debugPrint('📥 Status Code: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         try {
           final data = jsonDecode(response.body);
           
           final productCount = data['count'] ?? 0;
+          debugPrint('📦 Gefunden: $productCount Produkte');
           
-          if (productCount == 0) {
-            if (attempt < _maxRetries) {
-              await Future.delayed(const Duration(seconds: 2));
-              return searchProductsOFF(ingredientName, attempt: attempt + 1);
-            }
-            return null;
+          if (productCount == 0 && attempt == 1) {
+            debugPrint('⚠️ Keine Ergebnisse, versuche breitere Suche...');
+            await Future.delayed(const Duration(milliseconds: 800));
+            return searchProductsOFF(ingredientName, attempt: 2);
           }
           
           if (data['products'] != null && (data['products'] as List).isNotEmpty) {
             final productsList = data['products'] as List;
             
             final List<ProductSearchResult> results = [];
+            final searchLower = ingredientName.toLowerCase().trim();
             
-            for (int i = 0; i < productsList.length; i++) {
+            for (int i = 0; i < productsList.length && results.length < 10; i++) {
               final product = productsList[i];
               try {
-                final productName = (product['product_name'] ?? '').toString();
+                final productName = (product['product_name'] ?? '').toString().trim();
                 
                 if (productName.isEmpty) continue;
                 
                 final productNameLower = productName.toLowerCase();
-                final searchLower = ingredientName.toLowerCase();
                 
-                final containsSearch = productNameLower.contains(searchLower);
-                final searchContainsProduct = searchLower.contains(productNameLower);
-                final similar = _areSimilar(productNameLower, searchLower);
+                final relevanceScore = _calculateRelevance(searchLower, productNameLower);
                 
-                final isRelevant = containsSearch || searchContainsProduct || similar;
-                
-                if (!isRelevant) {
-                  continue;
-                }
+                if (relevanceScore < 0.3) continue;
                 
                 final nutriments = product['nutriments'];
                 
@@ -115,7 +119,7 @@ class NutritionApiService {
                   try {
                     finalCalories = (nutrimentsMap['energy-kj_100g'] as num).toDouble() / 4.184;
                   } catch (e) {
-                    // Ignoriere Fehler
+                    debugPrint('⚠️ Fehler bei kJ Umrechnung: $e');
                   }
                 }
 
@@ -134,48 +138,65 @@ class NutritionApiService {
                     },
                     completeness: completeness,
                   ));
+                  
+                  debugPrint('✅ Produkt hinzugefügt: $productName (${finalCalories.round()}kcal)');
                 }
               } catch (productError) {
+                debugPrint('⚠️ Fehler bei Produkt $i: $productError');
                 continue;
               }
             }
             
             if (results.isEmpty) {
+              debugPrint('❌ Keine verwertbaren Produkte gefunden');
               if (attempt < _maxRetries) {
-                await Future.delayed(const Duration(seconds: 2));
+                await Future.delayed(const Duration(seconds: 1));
                 return searchProductsOFF(ingredientName, attempt: attempt + 1);
               }
               return null;
             }
             
-            results.sort((a, b) => b.completeness.compareTo(a.completeness));
+            results.sort((a, b) {
+              final completenessDiff = b.completeness.compareTo(a.completeness);
+              if (completenessDiff != 0) return completenessDiff;
+              
+              final aHasCalories = a.nutritionPer100g['calories']! > 0 ? 1 : 0;
+              final bHasCalories = b.nutritionPer100g['calories']! > 0 ? 1 : 0;
+              return bHasCalories.compareTo(aHasCalories);
+            });
             
+            debugPrint('✨ Zurückgegeben: ${results.length} Produkte');
             return results;
           }
         } catch (parseError) {
+          debugPrint('❌ Parse Fehler: $parseError');
           if (attempt < _maxRetries) {
-            await Future.delayed(const Duration(seconds: 2));
+            await Future.delayed(const Duration(seconds: 1));
             return searchProductsOFF(ingredientName, attempt: attempt + 1);
           }
         }
       } else if (response.statusCode == 429) {
+        debugPrint('⏳ Rate Limit erreicht, warte...');
         await Future.delayed(const Duration(seconds: 5));
         
         if (attempt < _maxRetries) {
           return searchProductsOFF(ingredientName, attempt: attempt + 1);
         }
       } else {
+        debugPrint('❌ HTTP Fehler: ${response.statusCode}');
         if (attempt < _maxRetries && response.statusCode >= 500) {
-          await Future.delayed(const Duration(seconds: 3));
+          await Future.delayed(const Duration(seconds: 2));
           return searchProductsOFF(ingredientName, attempt: attempt + 1);
         }
       }
     } on http.ClientException catch (e) {
+      debugPrint('❌ Network Fehler: $e');
       if (attempt < _maxRetries) {
         await Future.delayed(const Duration(seconds: 2));
         return searchProductsOFF(ingredientName, attempt: attempt + 1);
       }
     } catch (e) {
+      debugPrint('❌ Unerwarteter Fehler: $e');
       if (attempt < _maxRetries) {
         await Future.delayed(const Duration(seconds: 2));
         return searchProductsOFF(ingredientName, attempt: attempt + 1);
@@ -183,6 +204,57 @@ class NutritionApiService {
     }
     
     return null;
+  }
+
+  String _prepareSearchTerms(String ingredient) {
+    String clean = ingredient.toLowerCase().trim();
+    
+    final synonyms = {
+      'mehl': 'weizenmehl OR mehl',
+      'zucker': 'zucker OR kristallzucker',
+      'öl': 'öl OR speiseöl',
+      'reis': 'reis OR basmatireis',
+      'nudeln': 'nudeln OR pasta',
+      'kartoffeln': 'kartoffeln OR kartoffel',
+      'tomaten': 'tomaten OR tomate',
+      'zwiebeln': 'zwiebeln OR zwiebel',
+    };
+    
+    return synonyms[clean] ?? clean;
+  }
+
+  double _calculateRelevance(String search, String productName) {
+    final searchWords = search.split(' ').where((w) => w.length > 2).toList();
+    final productWords = productName.split(' ');
+    
+    if (productName.contains(search)) return 1.0;
+    
+    if (search.contains(productName)) return 0.9;
+    
+    int matchCount = 0;
+    for (final searchWord in searchWords) {
+      for (final productWord in productWords) {
+        if (productWord.contains(searchWord) || searchWord.contains(productWord)) {
+          matchCount++;
+          break;
+        }
+      }
+    }
+    
+    if (searchWords.isEmpty) return 0.5;
+    
+    final wordMatchRatio = matchCount / searchWords.length;
+    
+    final clean1 = search.replaceAll(RegExp(r'[^a-z0-9]'), '');
+    final clean2 = productName.replaceAll(RegExp(r'[^a-z0-9]'), '');
+    
+    if (clean1.length >= 4 && clean2.length >= 4) {
+      if (clean1.substring(0, 4) == clean2.substring(0, 4)) {
+        return (wordMatchRatio + 0.8) / 2;
+      }
+    }
+    
+    return wordMatchRatio;
   }
 
   double _getDoubleValue(Map<String, dynamic> nutriments, List<String> possibleKeys) {
