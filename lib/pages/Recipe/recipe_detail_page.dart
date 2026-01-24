@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -7,7 +6,6 @@ import '../../supabase/database_service.dart';
 import '../../widgets/recipe_detail_items.dart';
 import '../../widgets/rating_widget.dart';
 import 'recipe_form_page.dart';
-
 
 class RecipeDetailScreen extends StatefulWidget {
   final Recipe recipe;
@@ -22,7 +20,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   final DatabaseService _dbService = DatabaseService();
 
   bool get _isMine =>
-      widget.recipe.ownerId != null && widget.recipe.ownerId == _dbService.userId;
+      widget.recipe.ownerId != null &&
+      widget.recipe.ownerId == _dbService.userId;
 
   late double _currentAverage;
   late int _currentTotal;
@@ -38,8 +37,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     _checkFavoriteStatus();
   }
 
-
-// Check if recipe is favorite
+  // Check if recipe is favorite
   Future<void> _checkFavoriteStatus() async {
     try {
       final isFav = await _dbService.isRecipeFavorite(widget.recipe.id!);
@@ -54,7 +52,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   // Toggle favorite status
-Future<void> _handleToggleFavorite() async {
+  Future<void> _handleToggleFavorite() async {
     try {
       await _dbService.toggleFavorite(widget.recipe.id!);
       setState(() => _isFavorite = !_isFavorite);
@@ -68,9 +66,17 @@ Future<void> _handleToggleFavorite() async {
     }
   }
 
-// Add recipe to weekly plan
+  // Add recipe to weekly plan
   Future<void> _showAddToWeeklyPlanDialog() async {
-    final List<String> days = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+    final List<String> days = [
+      'Montag',
+      'Dienstag',
+      'Mittwoch',
+      'Donnerstag',
+      'Freitag',
+      'Samstag',
+      'Sonntag',
+    ];
     final List<String> meals = ['Frühstück', 'Mittagessen', 'Abendessen'];
 
     String selectedDay = days[0];
@@ -85,21 +91,31 @@ Future<void> _handleToggleFavorite() async {
           children: [
             DropdownButtonFormField<String>(
               initialValue: selectedDay,
-              items: days.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+              items: days
+                  .map((d) => DropdownMenuItem(value: d, child: Text(d)))
+                  .toList(),
               onChanged: (val) => selectedDay = val!,
               decoration: const InputDecoration(labelText: "Tag"),
             ),
             DropdownButtonFormField<String>(
               initialValue: selectedMeal,
-              items: meals.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
+              items: meals
+                  .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                  .toList(),
               onChanged: (val) => selectedMeal = val!,
               decoration: const InputDecoration(labelText: "Mahlzeit"),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Abbrechen")),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text("Hinzufügen")),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Abbrechen"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Hinzufügen"),
+          ),
         ],
       ),
     );
@@ -108,13 +124,16 @@ Future<void> _handleToggleFavorite() async {
       try {
         // load current plan, update and save
         final currentPlan = await _dbService.loadWeekPlan();
-        if (!currentPlan.containsKey(selectedDay)) currentPlan[selectedDay] = {};
+        if (!currentPlan.containsKey(selectedDay))
+          currentPlan[selectedDay] = {};
         currentPlan[selectedDay]![selectedMeal] = widget.recipe.id!;
-        
+
         await _dbService.saveWeekPlan(currentPlan);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Zu $selectedDay ($selectedMeal) hinzugefügt!")),
+            SnackBar(
+              content: Text("Zu $selectedDay ($selectedMeal) hinzugefügt!"),
+            ),
           );
         }
       } catch (e) {
@@ -124,25 +143,26 @@ Future<void> _handleToggleFavorite() async {
   }
 
   void _handleAddToShoppingList() async {
-  try {
+    try {
       // On boucle sur tous les ingrédients de la recette pour les ajouter à la DB
       for (var ingredient in widget.recipe.ingredients) {
         await _dbService.addToShoppingList(
-          ingredient.name, 
-          ingredient.quantity, 
-          ingredient.unit
+          ingredient.name,
+          ingredient.quantity,
+          ingredient.unit,
         );
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Zutaten zur Einkaufsliste hinzugefügt!")),
+          const SnackBar(
+            content: Text("Zutaten zur Einkaufsliste hinzugefügt!"),
+          ),
         );
       }
     } catch (e) {
       debugPrint("Error adding to shopping list: $e");
     }
   }
-
 
   Future<void> _refreshStats() async {
     try {
@@ -185,7 +205,9 @@ Future<void> _handleToggleFavorite() async {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("Rezept löschen?"),
-        content: const Text("Diese Aktion kann nicht rückgängig gemacht werden."),
+        content: const Text(
+          "Diese Aktion kann nicht rückgängig gemacht werden.",
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -213,20 +235,23 @@ Future<void> _handleToggleFavorite() async {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Fehler: $e")));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Fehler: $e")));
       }
     }
   }
 
   Future<void> _shareRecipe() async {
-    final String message = '''
+    final String message =
+        '''
 🍳 ${widget.recipe.title}
 
 ⏱️ ${widget.recipe.durationMinutes} Min | 👥 ${widget.recipe.servings} Servings | ⭐ ${_currentAverage.toStringAsFixed(1)} ($_currentTotal Ratings)
 
 Check out this delicious recipe!
-'''.trim();
+'''
+            .trim();
 
     final ShareParams params = ShareParams(
       text: message,
@@ -237,7 +262,6 @@ Check out this delicious recipe!
   }
 
   Widget _buildCreatorInfo() {
-   
     if (widget.recipe.ownername == null) return const SizedBox.shrink();
 
     return Padding(
@@ -304,10 +328,18 @@ Check out this delicious recipe!
             icon: const Icon(Icons.more_vert, color: Colors.white),
             onSelected: (value) {
               switch (value) {
-                case 'save': _handleToggleFavorite(); break;
-                case 'week': _showAddToWeeklyPlanDialog(); break;
-                case 'buy': _handleAddToShoppingList(); break;
-                case 'delete': _confirmDelete(); break;
+                case 'save':
+                  _handleToggleFavorite();
+                  break;
+                case 'week':
+                  _showAddToWeeklyPlanDialog();
+                  break;
+                case 'buy':
+                  _handleAddToShoppingList();
+                  break;
+                case 'delete':
+                  _confirmDelete();
+                  break;
               }
             },
             itemBuilder: (context) => [
@@ -315,7 +347,10 @@ Check out this delicious recipe!
                 value: 'save',
                 child: Row(
                   children: [
-                    Icon(_isFavorite ? Icons.bookmark : Icons.bookmark_border, color: Colors.orange),
+                    Icon(
+                      _isFavorite ? Icons.bookmark : Icons.bookmark_border,
+                      color: Colors.orange,
+                    ),
                     const SizedBox(width: 10),
                     const Text("Speichern"),
                   ],
@@ -326,7 +361,7 @@ Check out this delicious recipe!
                 child: Row(
                   children: [
                     Icon(Icons.calendar_today, color: Colors.blue),
-                     SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Text("Zu Wochenplan hinzufügen"),
                   ],
                 ),
@@ -347,7 +382,7 @@ Check out this delicious recipe!
                   child: Row(
                     children: [
                       Icon(Icons.delete, color: Colors.red),
-                       SizedBox(width: 10),
+                      SizedBox(width: 10),
                       Text("Löschen", style: TextStyle(color: Colors.red)),
                     ],
                   ),
@@ -394,6 +429,20 @@ Check out this delicious recipe!
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+
+                        if (recipe.description != null &&
+                            recipe.description!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              recipe.description!,
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey[700],
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
                         const SizedBox(height: 8),
 
                         _isLoadingStats
@@ -410,7 +459,10 @@ Check out this delicious recipe!
                                   ),
                                 ),
                               )
-                            : _buildRatingSummary(_currentAverage, _currentTotal),
+                            : _buildRatingSummary(
+                                _currentAverage,
+                                _currentTotal,
+                              ),
 
                         const SizedBox(height: 12),
                         _buildCompactStats(),
@@ -446,7 +498,8 @@ Check out this delicious recipe!
                                   "kcal",
                                   "Kalorien",
                                 ),
-                              if (recipe.calories != null) const SizedBox(width: 16),
+                              if (recipe.calories != null)
+                                const SizedBox(width: 16),
                               if (recipe.protein != null)
                                 _buildNutritionCard(
                                   recipe.protein.toString(),
@@ -465,7 +518,8 @@ Check out this delicious recipe!
                                   "g",
                                   "Carbs",
                                 ),
-                              if (recipe.carbs != null) const SizedBox(width: 16),
+                              if (recipe.carbs != null)
+                                const SizedBox(width: 16),
                               if (recipe.fat != null)
                                 _buildNutritionCard(
                                   recipe.fat.toString(),
@@ -490,7 +544,9 @@ Check out this delicious recipe!
                   _buildSectionCard(
                     title: "Zubereitung",
                     child: Column(
-                      children: recipe.steps.map((step) => StepItem(step: step)).toList(),
+                      children: recipe.steps
+                          .map((step) => StepItem(step: step))
+                          .toList(),
                     ),
                   ),
 
@@ -554,7 +610,7 @@ Check out this delicious recipe!
             color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 4,
             offset: const Offset(0, 2),
-          )
+          ),
         ],
       ),
       child: Column(
@@ -578,13 +634,17 @@ Check out this delicious recipe!
       children: [
         const Icon(Icons.access_time, size: 16, color: Colors.grey),
         const SizedBox(width: 4),
-        Text('${widget.recipe.durationMinutes} Min',
-            style: const TextStyle(fontSize: 13)),
+        Text(
+          '${widget.recipe.durationMinutes} Min',
+          style: const TextStyle(fontSize: 13),
+        ),
         const SizedBox(width: 16),
         const Icon(Icons.people_outline, size: 16, color: Colors.grey),
         const SizedBox(width: 4),
-        Text('${widget.recipe.servings} Personen',
-            style: const TextStyle(fontSize: 13)),
+        Text(
+          '${widget.recipe.servings} Personen',
+          style: const TextStyle(fontSize: 13),
+        ),
       ],
     );
   }

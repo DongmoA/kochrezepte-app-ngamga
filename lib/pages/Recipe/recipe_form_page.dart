@@ -32,6 +32,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
   final _ingredientNameController = TextEditingController();
   final _ingredientQuantityController = TextEditingController();
+  final _descriptionController = TextEditingController();
   String _selectedIngredientUnit = 'g';
 
   Difficulty _selectedDifficulty = Difficulty.mittel;
@@ -77,10 +78,12 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
     _fatController.addListener(_markAsChanged);
     _ingredientNameController.addListener(_markAsChanged);
     _ingredientQuantityController.addListener(_markAsChanged);
+    _descriptionController.addListener(_markAsChanged);
 
     final r = widget.recipeToEdit;
     if (r != null) {
       _titleController.text = r.title;
+      _descriptionController.text = r.description ?? '';
       _durationController.text = r.durationMinutes.toString();
       _servingsController.text = r.servings.toString();
       _selectedDifficulty = r.difficulty;
@@ -407,6 +410,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
           }
         }
 
+        // Wenn wir hier sind, haben wir ein gültiges Produkt
         if (selectedProduct is! ProductSearchResult) {
           continue;
         }
@@ -854,6 +858,9 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
         id: _isEdit ? widget.recipeToEdit!.id : '',
         ownerId: _isEdit ? widget.recipeToEdit!.ownerId : null,
         title: _titleController.text.trim(),
+        description: _descriptionController.text.trim().isNotEmpty
+            ? _descriptionController.text.trim()
+            : null,
         imageUrl: finalImageUrl,
         durationMinutes: int.parse(_durationController.text),
         servings: int.parse(_servingsController.text),
@@ -1036,6 +1043,21 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                       validator: (v) => (v == null || v.trim().isEmpty)
                           ? 'Erforderlich'
                           : null,
+                    ),
+
+                    const SizedBox(height: 20),
+                    _buildFieldLabel('Kurze Beschreibung'),
+                    TextFormField(
+                      controller: _descriptionController,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.normal,
+                        fontSize: 15,
+                      ),
+                      decoration: _buildInputDecoration(
+                        'z.B. Ein klassisches italienisches Nudelgericht mit Speck und Ei.',
+                      ),
+                      maxLines: 2,
+                      maxLength: 200,
                     ),
                     const SizedBox(height: 20),
 
@@ -1959,6 +1981,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
   @override
   void dispose() {
     _titleController.dispose();
+    _descriptionController.dispose();
     _durationController.dispose();
     _servingsController.dispose();
     _caloriesController.dispose();

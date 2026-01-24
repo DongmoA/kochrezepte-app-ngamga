@@ -27,6 +27,7 @@ class Recipe {
   final String? ownerId;
 
   final String title;
+  final String? description;
   final String? imageUrl;
   final int durationMinutes;
   final int servings;
@@ -57,6 +58,7 @@ class Recipe {
     this.id,
     this.ownerId,
     required this.title,
+    this.description,
     this.imageUrl,
     required this.durationMinutes,
     required this.servings,
@@ -95,6 +97,7 @@ class Recipe {
       ownerId: json['owner_id']?.toString(), // NEW
 
       title: (json['title'] ?? '').toString(),
+      description: json['description']?.toString(),
       imageUrl: json['image_url']?.toString(),
       ownername: json['ownername']?.toString(), // NEW
 
@@ -134,6 +137,7 @@ class Recipe {
   Map<String, dynamic> toJson() {
     return {
       'title': title,
+      'description': description,
       'image_url': imageUrl,
       'duration_minutes': durationMinutes,
       'servings': servings,
