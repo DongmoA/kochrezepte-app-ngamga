@@ -62,7 +62,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
     'Vegetarisch',
   ];
 
-  List<String> get _availableUnits => ['g', 'ml', 'Stück'];
+  List<String> get _availableUnits => ['g', 'ml', 'Stück', 'Teelöffel'];
 
   @override
   void initState() {
@@ -237,7 +237,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Bitte fülle die Menge des Zutats aus'),
-          backgroundColor: Colors.orange,
+          backgroundColor: Colors.red,
         ),
       );
       return;
@@ -248,7 +248,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Bitte gib eine gültige Menge ein'),
-          backgroundColor: Colors.orange,
+          backgroundColor: Colors.red,
         ),
       );
       return;
@@ -274,7 +274,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Füge zuerst Zutaten hinzu'),
-          backgroundColor: Colors.orange,
+          backgroundColor: Colors.red,
         ),
       );
       return;
@@ -428,6 +428,8 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
           quantityInGrams = ing.quantity;
         } else if (ing.unit == 'Stück') {
           quantityInGrams = ing.quantity * 50;
+        } else if (ing.unit == 'Teelöffel') {
+          quantityInGrams = ing.quantity * 5;
         }
 
         final factor = quantityInGrams / 100.0;
@@ -689,7 +691,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                           const Icon(
                             Icons.info_outline,
                             size: 16,
-                            color: Colors.orange,
+                            color: Colors.red,
                           ),
                           const SizedBox(width: 8),
                           Expanded(
@@ -962,7 +964,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvoked: (bool didPop) async {
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
         if (didPop) return;
 
         final shouldPop = await _onWillPop();
@@ -1275,10 +1277,10 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                   Row(
+                    Row(
                       children: [
                         Expanded(
-                          flex: 2,
+                          flex: 3,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1287,7 +1289,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                                 controller: _ingredientQuantityController,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.normal,
-                                  fontSize: 16,
+                                  fontSize: 15,
                                 ),
                                 decoration: _buildInputDecoration('250'),
                                 keyboardType:
@@ -1303,9 +1305,9 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Expanded(
-                          flex: 1,
+                          flex: 2,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1314,10 +1316,11 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                                 value: _selectedIngredientUnit,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w600,
-                                  fontSize: 16,
+                                  fontSize: 15,
                                   color: Colors.black87,
                                 ),
                                 decoration: _buildInputDecoration(''),
+                                isDense: true,
                                 items: _availableUnits.map((unit) {
                                   return DropdownMenuItem<String>(
                                     value: unit,
@@ -1436,21 +1439,24 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                   children: [
                     _buildFieldLabel('Schritt-für-Schritt Anleitung'),
                     const SizedBox(height: 8),
-                    ElevatedButton.icon(
-                      onPressed: _addStep,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Schritt hinzufügen'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFF5722),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 14,
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _addStep,
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Schritt hinzufügen'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF5722),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 0,
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        elevation: 0,
                       ),
                     ),
                     if (_steps.isNotEmpty) ...[
@@ -1575,7 +1581,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildFieldLabel('Kalorien'),
+                              _buildFieldLabel('Kalorien (kcal)'),
                               TextFormField(
                                 controller: _caloriesController,
                                 style: const TextStyle(
@@ -2007,7 +2013,7 @@ class _IngredientDialogState extends State<_IngredientDialog> {
   final _quantityController = TextEditingController();
   String _selectedUnit = 'g';
 
-  List<String> get _availableUnits => ['g', 'ml', 'Stück'];
+  List<String> get _availableUnits => ['g', 'ml', 'Stück', 'Teelöffel'];
 
   @override
   void initState() {
@@ -2078,7 +2084,7 @@ class _IngredientDialogState extends State<_IngredientDialog> {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Bitte fülle alle Felder des Zutats aus'),
-                  backgroundColor: Colors.orange,
+                  backgroundColor: Colors.red,
                 ),
               );
               return;
@@ -2091,7 +2097,7 @@ class _IngredientDialogState extends State<_IngredientDialog> {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Bitte gib eine gültige Menge ein'),
-                  backgroundColor: Colors.orange,
+                  backgroundColor: Colors.red,
                 ),
               );
               return;

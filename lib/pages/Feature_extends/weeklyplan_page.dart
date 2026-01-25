@@ -381,7 +381,7 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
     // NEU: Verwende PopScope für Back-Button Handling
     return PopScope(
       canPop: false,
-      onPopInvoked: (bool didPop) async {
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
         if (didPop) return;
 
         final shouldPop = await _onWillPop();
@@ -624,10 +624,13 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
                   ),
 
                   if (hasAnyRecipe)
-                    IconButton(
-                      icon: const Icon(Icons.shopping_basket),
-                      color: const Color(0xFFFF5722),
-                      onPressed: () {},
+                    const Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Icon(
+                        Icons.shopping_basket,
+                        color: Color(0xFFFF5722),
+                        size: 24,
+                      ),
                     ),
                 ],
               ),
