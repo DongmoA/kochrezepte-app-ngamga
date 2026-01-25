@@ -1275,10 +1275,10 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Row(
+                   Row(
                       children: [
                         Expanded(
-                          flex: 3,
+                          flex: 2,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1303,9 +1303,9 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 8), 
+                        const SizedBox(width: 8),
                         Expanded(
-                          flex: 2,
+                          flex: 1,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1335,31 +1335,28 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 6), 
-                        Padding(
-                          padding: const EdgeInsets.only(top: 24),
-                          child: SizedBox(
-                            width: 48,
-                            height: 56,
-                            child: ElevatedButton(
-                              onPressed: _addIngredientDirect,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFFF5722),
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                padding: EdgeInsets.zero, 
-                                elevation: 0,
-                              ),
-                              child: const Icon(
-                                Icons.add,
-                                size: 24,
-                              ), 
-                            ),
-                          ),
-                        ),
                       ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _addIngredientDirect,
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Hinzufügen'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF5722),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 0,
+                        ),
+                      ),
                     ),
                     if (_ingredients.isNotEmpty) ...[
                       const SizedBox(height: 16),
