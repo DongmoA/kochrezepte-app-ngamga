@@ -6,7 +6,6 @@ import 'package:kochrezepte_app/supabase/nutrition_api_service.dart';
 
 import '../../models/recipe.dart';
 import '../../supabase/database_service.dart';
-import '../../supabase/nutrition_api_service.dart';
 
 class RecipeFormPage extends StatefulWidget {
   final Recipe? recipeToEdit;

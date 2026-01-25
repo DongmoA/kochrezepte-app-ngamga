@@ -34,6 +34,10 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
 
   DateTime _currentWeekStart = DateTime.now();
   final Map<String, Map<String, Recipe?>> _weekPlan = {};
+  
+  // NEU: Tracking für ungespeicherte Änderungen
+  bool _hasUnsavedChanges = false;
+  Map<String, Map<String, Recipe?>> _originalWeekPlan = {};
 
   List<Recipe> _allRecipes = [];
   bool _isLoadingRecipes = false;
@@ -57,17 +61,31 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
     return date.subtract(Duration(days: weekday - 1));
   }
 
-  void _navigateWeek(bool forward) {
+  void _navigateWeek(bool forward) async {
+    // Prüfe ob es ungespeicherte Änderungen gibt
+    if (_hasUnsavedChanges) {
+      final shouldDiscard = await _showDiscardDialog();
+      if (!shouldDiscard) return;
+    }
+
     setState(() {
       _currentWeekStart = _currentWeekStart.add(Duration(days: forward ? 7 : -7));
+      _hasUnsavedChanges = false;
     });
     
     _clearAndReloadWeekPlan();
   }
 
-  void _goToCurrentWeek() {
+  void _goToCurrentWeek() async {
+    // Prüfe ob es ungespeicherte Änderungen gibt
+    if (_hasUnsavedChanges) {
+      final shouldDiscard = await _showDiscardDialog();
+      if (!shouldDiscard) return;
+    }
+
     setState(() {
       _currentWeekStart = _getWeekStart(DateTime.now());
+      _hasUnsavedChanges = false;
     });
     
     _clearAndReloadWeekPlan();
@@ -143,6 +161,9 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
           }
         }
       }
+      
+      // NEU: Speichere den ursprünglichen Zustand
+      _saveOriginalState();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -150,6 +171,61 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
         );
       }
     }
+  }
+
+  // NEU: Speichere den ursprünglichen Zustand für Vergleich
+  void _saveOriginalState() {
+    _originalWeekPlan = {};
+    for (var day in _weekDays) {
+      _originalWeekPlan[day] = {};
+      for (var meal in _meals) {
+        _originalWeekPlan[day]![meal] = _weekPlan[day]![meal];
+      }
+    }
+    _hasUnsavedChanges = false;
+  }
+
+  // NEU: Prüfe ob es Änderungen gibt
+  void _markAsChanged() {
+    if (!_hasUnsavedChanges) {
+      setState(() => _hasUnsavedChanges = true);
+    }
+  }
+
+  // NEU: Dialog für ungespeicherte Änderungen
+  Future<bool> _showDiscardDialog() async {
+    final shouldDiscard = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Änderungen verwerfen?'),
+        content: const Text(
+          'Du hast ungespeicherte Änderungen am Wochenplan. Möchtest du die Seite wirklich verlassen?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            style: TextButton.styleFrom(foregroundColor: Colors.grey[700]),
+            child: const Text('Abbrechen'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Verwerfen'),
+          ),
+        ],
+      ),
+    );
+
+    return shouldDiscard ?? false;
+  }
+
+  // NEU: Behandle Back-Button
+  Future<bool> _onWillPop() async {
+    if (!_hasUnsavedChanges) return true;
+    return await _showDiscardDialog();
   }
 
   Future<void> _loadRecipes() async {
@@ -184,6 +260,7 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
     if (selectedRecipe != null) {
       setState(() {
         _weekPlan[day]![meal] = selectedRecipe;
+        _markAsChanged(); // NEU: Markiere als geändert
       });
     }
   }
@@ -191,6 +268,7 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
   void _removeRecipe(String day, String meal) {
     setState(() {
       _weekPlan[day]![meal] = null;
+      _markAsChanged(); // NEU: Markiere als geändert
     });
   }
 
@@ -215,6 +293,9 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
       await _dbService.saveWeekPlan(savedPlan);
       
       if (mounted) {
+        // NEU: Aktualisiere den ursprünglichen Zustand und setze Flag zurück
+        _saveOriginalState();
+        
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Wochenplan erfolgreich gespeichert!'),
@@ -274,50 +355,68 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      appBar: AppBar(
-        title: const Text(
-          'Wochenplan',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-        ),
-        backgroundColor: const Color(0xFFFF5722),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.shopping_cart, color: Colors.white),
-            onPressed: _generateShoppingList,
-            tooltip: 'Einkaufsliste',
+    // NEU: Verwende PopScope für Back-Button Handling
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (bool didPop) async {
+        if (didPop) return;
+
+        final shouldPop = await _onWillPop();
+        if (shouldPop && context.mounted) {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8F9FA),
+        appBar: AppBar(
+          title: const Text(
+            'Wochenplan',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
           ),
-          if (!_isCurrentWeek())
+          backgroundColor: const Color(0xFFFF5722),
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () async {
+              // NEU: Prüfe auf ungespeicherte Änderungen
+              final shouldPop = await _onWillPop();
+              if (shouldPop && context.mounted) {
+                Navigator.pop(context);
+              }
+            },
+          ),
+          actions: [
             IconButton(
-              icon: const Icon(Icons.today, color: Colors.white),
-              onPressed: _goToCurrentWeek,
-              tooltip: 'Heute',
+              icon: const Icon(Icons.shopping_cart, color: Colors.white),
+              onPressed: _generateShoppingList,
+              tooltip: 'Einkaufsliste',
             ),
-        ],
-      ),
-      body: _isLoadingRecipes
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                _buildWeekHeader(),
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _weekDays.length,
-                    itemBuilder: (context, index) {
-                      return _buildDayCard(index);
-                    },
+            if (!_isCurrentWeek())
+              IconButton(
+                icon: const Icon(Icons.today, color: Colors.white),
+                onPressed: _goToCurrentWeek,
+                tooltip: 'Heute',
+              ),
+          ],
+        ),
+        body: _isLoadingRecipes
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                children: [
+                  _buildWeekHeader(),
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _weekDays.length,
+                      itemBuilder: (context, index) {
+                        return _buildDayCard(index);
+                      },
+                    ),
                   ),
-                ),
-                _buildActionButtons(),
-              ],
-            ),
+                  _buildActionButtons(),
+                ],
+              ),
+      ),
     );
   }
 
@@ -393,17 +492,17 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
         children: [
           InkWell(
             onTap: () {
-  if (hasAnyRecipe && firstRecipe != null) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => RecipeDetailScreen(recipe: firstRecipe),
-      ),
-    );
-  } else {
-    _selectRecipe(day, _meals[0]);
-  }
-},
+              if (hasAnyRecipe && firstRecipe != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => RecipeDetailScreen(recipe: firstRecipe),
+                  ),
+                );
+              } else {
+                _selectRecipe(day, _meals[0]);
+              }
+            },
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             child: Container(
               padding: const EdgeInsets.all(16),
@@ -538,17 +637,17 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
       padding: const EdgeInsets.only(bottom: 8),
       child: InkWell(
         onTap: () {
-  if (hasRecipe) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => RecipeDetailScreen(recipe: selectedRecipe),
-      ),
-    );
-  } else {
-    _selectRecipe(day, meal);
-  }
-},
+          if (hasRecipe) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => RecipeDetailScreen(recipe: selectedRecipe),
+              ),
+            );
+          } else {
+            _selectRecipe(day, meal);
+          }
+        },
         borderRadius: BorderRadius.circular(12),
         child: Container(
           width: double.infinity,
@@ -653,7 +752,13 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () async {
+              // NEU: Prüfe auf ungespeicherte Änderungen
+              final shouldPop = await _onWillPop();
+              if (shouldPop && context.mounted) {
+                Navigator.pop(context);
+              }
+            },
             style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
