@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/recipe.dart';
 import '../../supabase/database_service.dart';
 import 'package:intl/intl.dart';
+import '../Recipe/recipe_detail_page.dart';
 
 class WeeklyplanPage extends StatefulWidget {
   const WeeklyplanPage({super.key});
@@ -391,7 +392,18 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
       child: Column(
         children: [
           InkWell(
-            onTap: hasAnyRecipe ? null : () => _selectRecipe(day, _meals[0]),
+            onTap: () {
+  if (hasAnyRecipe && firstRecipe != null) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RecipeDetailScreen(recipe: firstRecipe),
+      ),
+    );
+  } else {
+    _selectRecipe(day, _meals[0]);
+  }
+},
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             child: Container(
               padding: const EdgeInsets.all(16),
@@ -525,7 +537,18 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: InkWell(
-        onTap: () => _selectRecipe(day, meal),
+        onTap: () {
+  if (hasRecipe) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RecipeDetailScreen(recipe: selectedRecipe),
+      ),
+    );
+  } else {
+    _selectRecipe(day, meal);
+  }
+},
         borderRadius: BorderRadius.circular(12),
         child: Container(
           width: double.infinity,

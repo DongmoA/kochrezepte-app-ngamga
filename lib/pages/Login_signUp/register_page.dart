@@ -91,9 +91,11 @@ class _RegisterPageState extends State<RegisterPage> {
 
       try {
         await _authService.signUp(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-        );
+  email: _emailController.text.trim(),
+  password: _passwordController.text,
+  username: _nameController.text.trim(),
+  dietPreference: _selectedPreference,
+);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Registrierung erfolgreich!')),
