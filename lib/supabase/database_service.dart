@@ -612,9 +612,7 @@ Future<bool> isRecipeFavorite(String recipeId) async {
   }
 
   Future<Map<String, Map<String, String?>>> loadWeekPlan() async {
-    final userId = _authService.getCurrentUserId();
-    if (userId == null) throw Exception('User not authenticated');
-
+    
     try {
       final monday = _getMondayOfWeek(DateTime.now());
       final weekStartDate = '${monday.year}-${monday.month.toString().padLeft(2, '0')}-${monday.day.toString().padLeft(2, '0')}';
