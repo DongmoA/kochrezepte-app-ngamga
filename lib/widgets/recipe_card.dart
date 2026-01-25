@@ -132,6 +132,23 @@ class RecipeCard extends StatelessWidget {
                         DifficultyBadge(difficulty: recipe.difficulty),
                       ],
                     ),
+                    if (recipe.description != null &&
+                        recipe.description!.isNotEmpty)
+                      Flexible(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            recipe.description!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),

@@ -1,7 +1,7 @@
 
 import 'package:flutter/widgets.dart';
 import 'package:kochrezepte_app/supabase/supabase_client.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // Nécessaire pour PostgrestException
+import 'package:supabase_flutter/supabase_flutter.dart'; 
 
 class AuthService {
   final supaClient = SupabaseClientManager.client;
@@ -10,15 +10,31 @@ class AuthService {
   Future<AuthResponse> signUp({
     required String email,
     required String password,
+    required String username,
+    String? dietPreference,
   }) async {
     try {
       final response = await supaClient.auth.signUp(
         email: email,
         password: password,
       );
+
+      
+      if (response.user != null) {
+        await supaClient.from('profiles').insert({
+          'id': response.user!.id,
+          'username': username,
+          'diet_preference': dietPreference,
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+      }
+
       return response;
     } on AuthException catch (e) {
       throw Exception('Registrierung fehlgeschlagen: ${e.message}');
+    } catch (e) {
+      throw Exception('Profil-Erstellung fehlgeschlagen: $e');
     }
   }
 

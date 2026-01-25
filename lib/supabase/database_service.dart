@@ -25,6 +25,7 @@ class DatabaseService {
           .from('recipes')
           .insert({
             'title': recipe.title,
+            'description': recipe.description,
             'image_url': recipe.imageUrl,
             'duration_minutes': recipe.durationMinutes,
             'servings': recipe.servings,
@@ -139,6 +140,7 @@ class DatabaseService {
 
       await _db.from('recipes').update({
         'title': recipe.title,
+        'description': recipe.description,
         'image_url': recipe.imageUrl,
         'duration_minutes': recipe.durationMinutes,
         'servings': recipe.servings,
