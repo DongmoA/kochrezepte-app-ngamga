@@ -24,17 +24,21 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
     'Sonntag',
   ];
 
-  final List<String> _weekDaysShort = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
-
-  final List<String> _meals = [
-    'Frühstück',
-    'Mittagessen',
-    'Abendessen',
+  final List<String> _weekDaysShort = [
+    'Mo',
+    'Di',
+    'Mi',
+    'Do',
+    'Fr',
+    'Sa',
+    'So',
   ];
+
+  final List<String> _meals = ['Frühstück', 'Mittagessen', 'Abendessen'];
 
   DateTime _currentWeekStart = DateTime.now();
   final Map<String, Map<String, Recipe?>> _weekPlan = {};
-  
+
   // NEU: Tracking für ungespeicherte Änderungen
   bool _hasUnsavedChanges = false;
   Map<String, Map<String, Recipe?>> _originalWeekPlan = {};
@@ -69,10 +73,12 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
     }
 
     setState(() {
-      _currentWeekStart = _currentWeekStart.add(Duration(days: forward ? 7 : -7));
+      _currentWeekStart = _currentWeekStart.add(
+        Duration(days: forward ? 7 : -7),
+      );
       _hasUnsavedChanges = false;
     });
-    
+
     _clearAndReloadWeekPlan();
   }
 
@@ -87,7 +93,7 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
       _currentWeekStart = _getWeekStart(DateTime.now());
       _hasUnsavedChanges = false;
     });
-    
+
     _clearAndReloadWeekPlan();
   }
 
@@ -97,20 +103,33 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
         _weekPlan[day]![meal] = null;
       }
     }
-    
+
     _loadWeekPlan();
   }
 
   String _getWeekRangeText() {
     final weekEnd = _currentWeekStart.add(const Duration(days: 6));
-    final months = ['', 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
-                    'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
-    
+    final months = [
+      '',
+      'Januar',
+      'Februar',
+      'März',
+      'April',
+      'Mai',
+      'Juni',
+      'Juli',
+      'August',
+      'September',
+      'Oktober',
+      'November',
+      'Dezember',
+    ];
+
     final startDay = _currentWeekStart.day;
     final startMonth = months[_currentWeekStart.month];
     final endDay = weekEnd.day;
     final endMonth = months[weekEnd.month];
-    
+
     if (_currentWeekStart.month == weekEnd.month) {
       return '$startDay. - $endDay. $endMonth';
     } else {
@@ -122,8 +141,8 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
     final today = DateTime.now();
     final thisWeekStart = _getWeekStart(today);
     return _currentWeekStart.year == thisWeekStart.year &&
-           _currentWeekStart.month == thisWeekStart.month &&
-           _currentWeekStart.day == thisWeekStart.day;
+        _currentWeekStart.month == thisWeekStart.month &&
+        _currentWeekStart.day == thisWeekStart.day;
   }
 
   DateTime _getDateForDayIndex(int index) {
@@ -134,19 +153,19 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
     final date = _getDateForDayIndex(dayIndex);
     final today = DateTime.now();
     return date.year == today.year &&
-           date.month == today.month &&
-           date.day == today.day;
+        date.month == today.month &&
+        date.day == today.day;
   }
 
   Future<void> _loadWeekPlan() async {
     try {
       final savedPlan = await _dbService.loadWeekPlan();
-      
+
       for (var dayIndex = 0; dayIndex < _weekDays.length; dayIndex++) {
         final day = _weekDays[dayIndex];
         final date = _getDateForDayIndex(dayIndex);
         final dateKey = DateFormat('yyyy-MM-dd').format(date);
-        
+
         if (savedPlan.containsKey(dateKey)) {
           for (var meal in savedPlan[dateKey]!.keys) {
             final recipeId = savedPlan[dateKey]![meal];
@@ -161,14 +180,14 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
           }
         }
       }
-      
+
       // NEU: Speichere den ursprünglichen Zustand
       _saveOriginalState();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler beim Laden: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Fehler beim Laden: $e')));
       }
     }
   }
@@ -231,7 +250,9 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
   Future<void> _loadRecipes() async {
     setState(() => _isLoadingRecipes = true);
     try {
-      final recipes = await _dbService.fetchAllRecipes(filter: RecipeFilter.all);
+      final recipes = await _dbService.fetchAllRecipes(
+        filter: RecipeFilter.all,
+      );
       if (mounted) {
         setState(() {
           _allRecipes = recipes;
@@ -241,9 +262,9 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoadingRecipes = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler beim Laden: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Fehler beim Laden: $e')));
       }
     }
   }
@@ -276,13 +297,13 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
     try {
       // Lade zuerst alle existierenden Daten
       final savedPlan = await _dbService.loadWeekPlan();
-      
+
       // Aktualisiere nur die aktuelle Woche
       for (var dayIndex = 0; dayIndex < _weekDays.length; dayIndex++) {
         final day = _weekDays[dayIndex];
         final date = _getDateForDayIndex(dayIndex);
         final dateKey = DateFormat('yyyy-MM-dd').format(date);
-        
+
         // Erstelle oder aktualisiere den Eintrag für dieses Datum
         savedPlan[dateKey] = _weekPlan[day]!.map(
           (meal, recipe) => MapEntry(meal, recipe?.id),
@@ -291,11 +312,11 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
 
       // Speichere alles zurück (mit alten + neuen Daten)
       await _dbService.saveWeekPlan(savedPlan);
-      
+
       if (mounted) {
         // NEU: Aktualisiere den ursprünglichen Zustand und setze Flag zurück
         _saveOriginalState();
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Wochenplan erfolgreich gespeichert!'),
@@ -339,7 +360,9 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Einkaufsliste für ${selectedRecipes.length} Rezepte wird erstellt...'),
+        content: Text(
+          'Einkaufsliste für ${selectedRecipes.length} Rezepte wird erstellt...',
+        ),
         backgroundColor: const Color(0xFFFF5722),
       ),
     );
@@ -427,9 +450,9 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Diese Woche',
-            style: TextStyle(
+          Text(
+            _isCurrentWeek() ? 'Diese Woche' : 'Woche',
+            style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
@@ -441,10 +464,7 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
             children: [
               Text(
                 _getWeekRangeText(),
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
               ),
               Row(
                 children: [
@@ -512,7 +532,9 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
                     width: 64,
                     height: 64,
                     decoration: BoxDecoration(
-                      color: isToday ? const Color(0xFFFF5722) : Colors.grey[100],
+                      color: isToday
+                          ? const Color(0xFFFF5722)
+                          : Colors.grey[100],
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
@@ -539,7 +561,7 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
                     ),
                   ),
                   const SizedBox(width: 16),
-                  
+
                   if (firstRecipe != null && firstRecipe.imageUrl != null) ...[
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
@@ -556,14 +578,17 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
                               color: Colors.grey[200],
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(Icons.restaurant, color: Colors.grey),
+                            child: const Icon(
+                              Icons.restaurant,
+                              color: Colors.grey,
+                            ),
                           );
                         },
                       ),
                     ),
                     const SizedBox(width: 12),
                   ],
-                  
+
                   Expanded(
                     child: firstRecipe != null
                         ? Column(
@@ -597,7 +622,7 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
                             ),
                           ),
                   ),
-                  
+
                   if (hasAnyRecipe)
                     IconButton(
                       icon: const Icon(Icons.shopping_basket),
@@ -608,7 +633,7 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
               ),
             ),
           ),
-          
+
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Column(
@@ -653,10 +678,14 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: hasRecipe ? Colors.white : const Color(0xFFFF5722).withOpacity(0.1),
+            color: hasRecipe
+                ? Colors.white
+                : const Color(0xFFFF5722).withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: hasRecipe ? Colors.grey[200]! : const Color(0xFFFF5722).withOpacity(0.3),
+              color: hasRecipe
+                  ? Colors.grey[200]!
+                  : const Color(0xFFFF5722).withOpacity(0.3),
             ),
           ),
           child: Row(
@@ -678,7 +707,11 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
                             color: Colors.grey[200],
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(Icons.restaurant, size: 20, color: Colors.grey),
+                          child: const Icon(
+                            Icons.restaurant,
+                            size: 20,
+                            color: Colors.grey,
+                          ),
                         );
                       },
                     ),
@@ -691,11 +724,15 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
                       color: Colors.grey[200],
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.restaurant, size: 20, color: Colors.grey),
+                    child: const Icon(
+                      Icons.restaurant,
+                      size: 20,
+                      color: Colors.grey,
+                    ),
                   ),
                 const SizedBox(width: 12),
               ],
-              
+
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -713,8 +750,12 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
                       hasRecipe ? selectedRecipe.title : 'Rezept hinzufügen',
                       style: TextStyle(
                         fontSize: 15,
-                        fontWeight: hasRecipe ? FontWeight.w600 : FontWeight.normal,
-                        color: hasRecipe ? Colors.black87 : const Color(0xFFFF5722),
+                        fontWeight: hasRecipe
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                        color: hasRecipe
+                            ? Colors.black87
+                            : const Color(0xFFFF5722),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -722,7 +763,7 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
                   ],
                 ),
               ),
-              
+
               if (hasRecipe)
                 IconButton(
                   icon: const Icon(Icons.close, size: 20),
@@ -868,6 +909,16 @@ class _RecipeSelectionDialogState extends State<_RecipeSelectionDialog> {
               decoration: InputDecoration(
                 hintText: 'Rezept suchen...',
                 prefixIcon: const Icon(Icons.search, color: Color(0xFFFF5722)),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.grey),
+                        onPressed: () {
+                          setState(() {
+                            _searchController.clear();
+                          });
+                        },
+                      )
+                    : null,
                 filled: true,
                 fillColor: Colors.grey[100],
                 border: OutlineInputBorder(
@@ -898,11 +949,18 @@ class _RecipeSelectionDialogState extends State<_RecipeSelectionDialog> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+                          Icon(
+                            Icons.search_off,
+                            size: 64,
+                            color: Colors.grey[400],
+                          ),
                           const SizedBox(height: 16),
                           Text(
                             'Keine Rezepte gefunden',
-                            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey[600],
+                            ),
                           ),
                         ],
                       ),
@@ -948,7 +1006,10 @@ class _RecipeSelectionDialogState extends State<_RecipeSelectionDialog> {
                           width: 70,
                           height: 70,
                           color: Colors.grey[200],
-                          child: const Icon(Icons.restaurant, color: Colors.grey),
+                          child: const Icon(
+                            Icons.restaurant,
+                            color: Colors.grey,
+                          ),
                         );
                       },
                     )
@@ -977,14 +1038,22 @@ class _RecipeSelectionDialogState extends State<_RecipeSelectionDialog> {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      Icon(Icons.access_time, size: 14, color: Colors.grey[600]),
+                      Icon(
+                        Icons.access_time,
+                        size: 14,
+                        color: Colors.grey[600],
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         '${recipe.durationMinutes} Min',
                         style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                       ),
                       const SizedBox(width: 12),
-                      Icon(Icons.restaurant_menu, size: 14, color: Colors.grey[600]),
+                      Icon(
+                        Icons.restaurant_menu,
+                        size: 14,
+                        color: Colors.grey[600],
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         '${recipe.servings} Port.',
@@ -998,7 +1067,10 @@ class _RecipeSelectionDialogState extends State<_RecipeSelectionDialog> {
                       spacing: 4,
                       children: recipe.tags.take(3).map((tag) {
                         return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFF5722).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(6),
