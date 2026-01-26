@@ -7,10 +7,10 @@ class SupabaseClientManager {
 
   static Future<void> initialize() async {
 
-    await dotenv.load(fileName: ".env");
+    await dotenv.load(fileName: ".env"); 
 
     final supabaseUrl = dotenv.env['SUPABASE_URL']?? '';
-    final supabaseKey = dotenv.env['SUPABASE_KEY'] ?? '';
+    final supabaseKey = dotenv.env['SUPABASE_KEY'] ?? ''; 
 
      if (supabaseKey.isEmpty) {
       throw Exception('SUPABASE_KEY nicht in .env gefunden!');

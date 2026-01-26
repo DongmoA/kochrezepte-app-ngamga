@@ -91,11 +91,11 @@ class _RegisterPageState extends State<RegisterPage> {
 
       try {
         await _authService.signUp(
-  email: _emailController.text.trim(),
-  password: _passwordController.text,
-  username: _nameController.text.trim(),
-  dietPreference: _selectedPreference,
-);
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+          username: _nameController.text.trim(),
+          dietPreference: _selectedPreference,
+        );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Registrierung erfolgreich!')),
@@ -489,8 +489,10 @@ class _RegisterPageState extends State<RegisterPage> {
                                   'Keine',
                                   'Vegetarisch',
                                   'Vegan',
+                                  'Pescetarier',
                                   'Glutenfrei',
                                   'Laktosefrei',
+                                  'Fructosefrei',
                                 ].map((String value) {
                                   return DropdownMenuItem<String>(
                                     value: value,
