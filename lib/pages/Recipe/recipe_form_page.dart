@@ -1860,8 +1860,8 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                           )
                         : Text(
                             _isEdit
-                                ? 'Rezept aktualisieren'
-                                : 'Rezept erstellen',
+                                ? 'Aktualisieren'
+                                : 'Erstellen',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
