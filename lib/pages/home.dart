@@ -34,22 +34,6 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
-  /*static const Map<RecipeFilter, String> _filterLabels = {
-    RecipeFilter.all: 'Alle',
-    RecipeFilter.favorite: 'Gespeichert',
-    RecipeFilter.newest: 'Neu',
-    RecipeFilter.popular: 'Beliebt',
-    RecipeFilter.mine: 'Meine',
-  };
-
-  static const Map<RecipeFilter, IconData> _filterIcons = {
-    RecipeFilter.all: Icons.grid_view,
-    RecipeFilter.favorite: Icons.favorite,
-    RecipeFilter.newest: Icons.fiber_new,
-    RecipeFilter.popular: Icons.trending_up,
-    RecipeFilter.mine: Icons.person,
-  };*/
-
   @override
   void initState() {
     super.initState();
@@ -141,53 +125,60 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
   List<Recipe> _getFilteredRecipes() {
     List<Recipe> filtered = List.from(_recipes);
 
-   if (_searchQuery.isNotEmpty) {
-  final query = _searchQuery.toLowerCase().trim();
-  
-  // 1. FILTRER : Chercher dans titre, description ET ingrédients
-  filtered = filtered.where((recipe) {
-    final titleMatch = recipe.title.toLowerCase().contains(query);
-    final descMatch = recipe.description?.toLowerCase().contains(query) ?? false;
-    
-    // Chercher dans les ingrédients
-    final ingredientsMatch = recipe.ingredients.any(
-      (ing) => ing.name.toLowerCase().contains(query)
-    );
-    
-    return titleMatch || descMatch || ingredientsMatch;
-  }).toList();
-  
-  // 2. TRIER par PERTINENCE (priorité : titre > ingrédients > description)
-  filtered.sort((a, b) {
-    final titleA = a.title.toLowerCase();
-    final titleB = b.title.toLowerCase();
-    
-    // Priorité 1 : Titre exact
-    if (titleA == query && titleB != query) return -1;
-    if (titleA != query && titleB == query) return 1;
-    
-    // Priorité 2 : Titre contient la recherche
-    final titleMatchA = titleA.contains(query);
-    final titleMatchB = titleB.contains(query);
-    if (titleMatchA && !titleMatchB) return -1;
-    if (!titleMatchA && titleMatchB) return 1;
-    
-    // Priorité 3 : Ingrédients contiennent la recherche
-    final ingMatchA = a.ingredients.any((ing) => ing.name.toLowerCase().contains(query));
-    final ingMatchB = b.ingredients.any((ing) => ing.name.toLowerCase().contains(query));
-    if (ingMatchA && !ingMatchB) return -1;
-    if (!ingMatchA && ingMatchB) return 1;
-    
-    // Priorité 4 : Description contient la recherche
-    final descMatchA = a.description?.toLowerCase().contains(query) ?? false;
-    final descMatchB = b.description?.toLowerCase().contains(query) ?? false;
-    if (descMatchA && !descMatchB) return -1;
-    if (!descMatchA && descMatchB) return 1;
-    
-    // Priorité 5 : Ordre alphabétique
-    return titleA.compareTo(titleB);
-  });
-}
+    if (_searchQuery.isNotEmpty) {
+      final query = _searchQuery.toLowerCase().trim();
+
+      // 1. FILTRER : Chercher dans titre, description ET ingrédients
+      filtered = filtered.where((recipe) {
+        final titleMatch = recipe.title.toLowerCase().contains(query);
+        final descMatch =
+            recipe.description?.toLowerCase().contains(query) ?? false;
+
+        // Chercher dans les ingrédients
+        final ingredientsMatch = recipe.ingredients.any(
+          (ing) => ing.name.toLowerCase().contains(query),
+        );
+
+        return titleMatch || descMatch || ingredientsMatch;
+      }).toList();
+
+      // 2. TRIER par PERTINENCE (priorité : titre > ingrédients > description)
+      filtered.sort((a, b) {
+        final titleA = a.title.toLowerCase();
+        final titleB = b.title.toLowerCase();
+
+        // Priorité 1 : Titre exact
+        if (titleA == query && titleB != query) return -1;
+        if (titleA != query && titleB == query) return 1;
+
+        // Priorité 2 : Titre contient la recherche
+        final titleMatchA = titleA.contains(query);
+        final titleMatchB = titleB.contains(query);
+        if (titleMatchA && !titleMatchB) return -1;
+        if (!titleMatchA && titleMatchB) return 1;
+
+        // Priorité 3 : Ingrédients contiennent la recherche
+        final ingMatchA = a.ingredients.any(
+          (ing) => ing.name.toLowerCase().contains(query),
+        );
+        final ingMatchB = b.ingredients.any(
+          (ing) => ing.name.toLowerCase().contains(query),
+        );
+        if (ingMatchA && !ingMatchB) return -1;
+        if (!ingMatchA && ingMatchB) return 1;
+
+        // Priorité 4 : Description contient la recherche
+        final descMatchA =
+            a.description?.toLowerCase().contains(query) ?? false;
+        final descMatchB =
+            b.description?.toLowerCase().contains(query) ?? false;
+        if (descMatchA && !descMatchB) return -1;
+        if (!descMatchA && descMatchB) return 1;
+
+        // Priorité 5 : Ordre alphabétique
+        return titleA.compareTo(titleB);
+      });
+    }
 
     // 3. FILTRER par TEMPS
     if (_selectedTime != null) {
@@ -625,11 +616,13 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
 
   Widget _buildEmptyState() {
     final hasActiveFilters =
-        _searchQuery.isNotEmpty ||
         _selectedTags.isNotEmpty ||
         _selectedTime != null ||
         _selectedMealType != null;
     String message = 'No recipes found.';
+    if (_searchQuery.isNotEmpty) {
+      message = 'Keine Rezepte für "$_searchQuery" gefunden.';
+    }
     if (hasActiveFilters) {
       message = 'No recipes match your filters.';
     } else if (_currentFilter == RecipeFilter.mine) {
