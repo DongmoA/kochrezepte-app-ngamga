@@ -63,101 +63,6 @@ cd kochrezepte_app
 flutter pub get
 ```
 
-**Schritt 3: Umgebungsvariablen konfigurieren**
-
-Es gibt zwei Möglichkeiten, den Supabase Key zu konfigurieren:
-
-##### Option A: Mit `.env` Datei (Empfohlen für Entwicklung)
-
-1. **Package hinzufügen** in `pubspec.yaml`:
-```yaml
-dependencies:
-  flutter_dotenv: ^5.1.0
-```
-
-2. **`.env` Datei erstellen** im Projekt-Root (gleiche Ebene wie `pubspec.yaml`):
-```env
-SUPABASE_KEY=dein_supabase_anon_key_hier
-```
-
-3. **Assets deklarieren** in `pubspec.yaml`:
-```yaml
-flutter:
-  uses-material-design: true
-  
-  assets:
-    - .env
-```
-
-4. **`.env` zu `.gitignore` hinzufügen**:
-```gitignore
-# Environment variables
-.env
-```
-
-5. **Code anpassen** in `lib/supabase/supabase_client.dart`:
-```dart
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-
-class SupabaseClientManager {
-  static late final SupabaseClient client;
-
-  static Future<void> initialize() async {
-    // Lade .env Datei
-    await dotenv.load(fileName: ".env");
-    
-    const supabaseUrl = 'https://vfsjphaumjcpusuqakmv.supabase.co';
-    final supabaseKey = dotenv.env['SUPABASE_KEY'] ?? '';
-    
-    if (supabaseKey.isEmpty) {
-      throw Exception('SUPABASE_KEY not found in .env file');
-    }
-
-    await Supabase.initialize(
-      url: supabaseUrl,
-      anonKey: supabaseKey,
-    );
-
-    client = Supabase.instance.client;
-  }
-}
-```
-
-6. **`main.dart` anpassen**:
-```dart
-import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'supabase/supabase_client.dart';
-
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Lade .env Datei
-  await dotenv.load(fileName: ".env");
-  
-  // Initialisiere Supabase
-  await SupabaseClientManager.initialize();
-  
-  runApp(const MyApp());
-}
-```
-
-7. **Dependencies aktualisieren**:
-```bash
-flutter pub get
-```
-
-**Schritt 4: App starten**
-Das Projekt in Visual Studio Code aufmachen und im Terminal der folgende Befehl ausführen:
-```bash
-flutter run
-```
-Der bevorzügte Browser auswählen: 
-[1]: Windows (windows)
-[2]: Chrome (chrome)
-[3]: Edge (edge)
-
 ### 2.3 Projektstruktur
 
 ```
@@ -213,69 +118,18 @@ lib/
 
 ### 2.5 App zum Laufen bringen
 
-#### Entwicklung
-
-**Mit `.env` Datei (Option A):**
+**Schritt 3: App starten**
+Das Projekt in Visual Studio Code aufmachen und im Terminal der folgende Befehl ausführen:
 ```bash
-# Hot Reload während der Entwicklung
 flutter run
-
-# Auf spezifischem Gerät
-flutter run -d chrome  # Web
-flutter run -d android # Android
-flutter run -d ios     # iOS
 ```
-
-**Mit `--dart-define` (Option B):**
+Der bevorzügte Browser auswählen: 
+[1]: Windows (windows)
+[2]: Chrome (chrome)
+[3]: Edge (edge)
 ```bash
-# Hot Reload während der Entwicklung
-flutter run --dart-define=SUPABASE_KEY=<key>
 
-# Auf spezifischem Gerät
-flutter run -d chrome --dart-define=SUPABASE_KEY=<key>
-flutter run -d android --dart-define=SUPABASE_KEY=<key>
-flutter run -d ios --dart-define=SUPABASE_KEY=<key>
 ```
-
-#### Build
-
-**Mit `.env` Datei (Option A):**
-```bash
-# Wichtig: .env muss in das Build-Verzeichnis kopiert werden
-# Für Release-Builds die .env Datei direkt im Code einbetten (siehe Option B)
-
-# Android APK
-flutter build apk --release
-
-# Android App Bundle
-flutter build appbundle --release
-
-# iOS
-flutter build ios --release
-
-# Web
-flutter build web --release
-```
-
-**Mit `--dart-define` (Option B - Empfohlen für Production):**
-```bash
-# Android APK
-flutter build apk --release --dart-define=SUPABASE_KEY=<key>
-
-# Android App Bundle
-flutter build appbundle --release --dart-define=SUPABASE_KEY=<key>
-
-# iOS
-flutter build ios --release --dart-define=SUPABASE_KEY=<key>
-
-# Web
-flutter build web --release --dart-define=SUPABASE_KEY=<key>
-```
-
-**Hinweis für Production Builds:**  
-Für Production-Builds wird empfohlen, `--dart-define` zu verwenden statt `.env`, da der Key dann zur Compile-Zeit eingebettet wird und nicht als Asset-Datei verfügbar ist.
-
----
 
 ## 3. Systemarchitektur
 
