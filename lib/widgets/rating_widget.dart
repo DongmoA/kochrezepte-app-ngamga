@@ -106,8 +106,12 @@ class _RecipeRatingWidgetState extends State<RecipeRatingWidget> {
         const SizedBox(height: 24),
         
         // section to rate the recipe or see existing reviews
-        if (_userRating == null) 
+        if (_userRating == null && _allReviews.isEmpty) 
           _buildVotingForm() 
+        else if (_userRating == null && _allReviews.isNotEmpty) ...[
+         _buildVotingForm(),  
+         _buildReviewList()
+        ]
         else
         // List of  existing reviews
         _buildReviewList(),

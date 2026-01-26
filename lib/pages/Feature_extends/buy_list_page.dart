@@ -48,6 +48,7 @@ class _BuyListPageState extends State<BuyListPage> {
   final List<ShoppingItem> _shoppingList = [];
   bool _isLoading = true;
   final Color _primaryColor = const Color(0xFFE65100);
+  final List<String> _units = ['g', 'kg', 'ml', 'l', 'Stück', 'TL', 'EL', 'Pkg.'];
 
   @override
   void initState() {
@@ -95,9 +96,6 @@ class _BuyListPageState extends State<BuyListPage> {
               onTap: () async {
                 Navigator.pop(context);
                 for (var ing in recipe.ingredients) {
-                  // Conversion texte -> nombre (ex: "200g" -> 200.0)
-                /*String cleanQty = ing.quantity.replaceAll(RegExp(r'[^0-9.]'), '');
-                 double qty = double.tryParse(cleanQty) ?? 1.0;*/
                   
                   await _dbService.addToShoppingList(ing.name,ing.quantity, ing.unit);
                 }
@@ -111,42 +109,95 @@ class _BuyListPageState extends State<BuyListPage> {
       setState(() => _isLoading = false);
       debugPrint("Error importing: $e");
     }
+
   }
 
+/// --- MANUAL ADD LOGIC ---
   void _addManualItem() {
     String name = '';
     double qty = 0.0;
+    
+    // Fix for Web: Capture the list in a local variable to avoid "undefined" scope errors
+    final unitsList = _units; 
+    String selectedUnit = unitsList[0]; 
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Artikel hinzufügen'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              decoration: const InputDecoration(labelText: 'Name'),
-              onChanged: (val) => name = val,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Artikel hinzufügen'),
+          content: SingleChildScrollView( // Prevents overflow if keyboard opens
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Name (z.B. Äpfel)',
+                    isDense: true,
+                  ),
+                  onChanged: (val) => name = val,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: TextField(
+                        decoration: const InputDecoration(
+                          labelText: 'Menge',
+                          isDense: true,
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        onChanged: (val) => qty = double.tryParse(val.replaceAll(',', '.')) ?? 0.0,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 4,
+                      child: DropdownButtonFormField<String>(
+                        value: selectedUnit,
+                        isExpanded: true, // Prevents horizontal overflow
+                        decoration: const InputDecoration(
+                          labelText: 'Einheit',
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                        ),
+                        // Use the local captured list here
+                        items: unitsList.map((unit) => DropdownMenuItem(
+                          value: unit,
+                          child: Text(unit, style: const TextStyle(fontSize: 14)),
+                        )).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDialogState(() => selectedUnit = val);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            TextField(
-              decoration: const InputDecoration(labelText: 'Menge'),
-              keyboardType: TextInputType.number,
-              onChanged: (val) => qty = double.tryParse(val) ?? 0.0,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context), 
+              child: const Text('Abbrechen')
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
+              onPressed: () async {
+                if (name.isNotEmpty) {
+                  await _dbService.addToShoppingList(name, qty, selectedUnit);
+                  if (mounted) Navigator.pop(context);
+                  _loadShoppingList();
+                }
+              },
+              child: const Text('Hinzufügen', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
-          ElevatedButton(
-            onPressed: () async {
-              if (name.isNotEmpty) {
-                await _dbService.addToShoppingList(name, qty, "");
-                if (mounted) Navigator.pop(context);
-                _loadShoppingList();
-              }
-            },
-            child: const Text('Hinzufügen'),
-          ),
-        ],
       ),
     );
   }
@@ -182,25 +233,96 @@ class _BuyListPageState extends State<BuyListPage> {
     );
   }
 
+ // --- CLEAR ALL LOGIC ---
+Future<void> _confirmClearList() async {
+  // Show confirmation dialog 
+  bool? confirm = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Liste leeren'),
+      content: const Text('Möchten Sie wirklich alle Artikel aus Ihrer Einkaufsliste löschen?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Abbrechen'), // Cancel
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Löschen', style: TextStyle(color: Colors.red)), // Delete
+        ),
+      ],
+    ),
+  );
+
+  if (confirm == true) {
+    setState(() => _isLoading = true);
+    try {
+      await _dbService.clearShoppingList();
+      await _loadShoppingList(); // Refresh the UI
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Liste wurde geleert')),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error clearing list: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+}
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Einkaufsliste', style: TextStyle(color: Colors.white)),
         backgroundColor: _primaryColor,
+        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
             icon: const Icon(Icons.share, color: Colors.white),
-            onPressed: () {
-              String text = "Einkaufsliste:\n" + _shoppingList.map((e) => "- ${e.formattedQuantity}${e.unit} ${e.name}").join("\n");
-              Share.share(text);
+            onPressed:  () async {
+              final String text = "Einkaufsliste:\n${_shoppingList
+              .map((e) => "- ${e.formattedQuantity}${e.unit} ${e.name}")
+              .join("\n")}";
+
+              final ShareParams params = ShareParams(
+                text: text,
+                 subject: 'Meine Einkaufsliste',
+              );
+
+             await SharePlus.instance.share(params);
             }
-          )
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_forever, color: Colors.white),
+            onPressed: _confirmClearList,
+          ), 
         ],
       ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator()) 
-        : ListView.builder(
+        : _shoppingList.isEmpty
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.shopping_cart_outlined, size: 80, color: Colors.grey[400]),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Ihre Liste ist leer', //  Your list is empty
+                      style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Fügen Sie Artikel hinzu ou importieren Sie ein Rezept', //  Add items or import recipe
+                      style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                    ),
+                  ],
+                ),
+              )
+            :ListView.builder(
             itemCount: _shoppingList.length,
             itemBuilder: (context, index) {
               final item = _shoppingList[index];

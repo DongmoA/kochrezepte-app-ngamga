@@ -22,9 +22,7 @@ enum MealType {
 class Recipe {
   final String? id;
 
-  /// NEW: permet de savoir si la recette est à l’utilisateur courant
-  /// (champ DB: owner_id)
-  final String? ownerId;
+    final String? ownerId;
 
   final String title;
   final String? description;
@@ -146,9 +144,6 @@ class Recipe {
       'average_rating': averageRating,
       'total_ratings': totalRatings,
 
-      // owner_id: normalement set côté createRecipe via DatabaseService,
-      // mais tu peux le laisser ici si tu veux faire un insert direct
-      // 'owner_id': ownerId,
     };
   }
 

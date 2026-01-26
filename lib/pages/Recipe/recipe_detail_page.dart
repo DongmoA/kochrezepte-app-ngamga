@@ -6,6 +6,7 @@ import '../../supabase/database_service.dart';
 import '../../widgets/recipe_detail_items.dart';
 import '../../widgets/rating_widget.dart';
 import 'recipe_form_page.dart';
+import 'package:intl/intl.dart'; // for date formatting
 
 class RecipeDetailScreen extends StatefulWidget {
   final Recipe recipe;
@@ -68,83 +69,98 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
   // Add recipe to weekly plan
   Future<void> _showAddToWeeklyPlanDialog() async {
-    final List<String> days = [
-      'Montag',
-      'Dienstag',
-      'Mittwoch',
-      'Donnerstag',
-      'Freitag',
-      'Samstag',
-      'Sonntag',
-    ];
-    final List<String> meals = ['Frühstück', 'Mittagessen', 'Abendessen'];
+  // Calculate the current week's Monday
+  DateTime now = DateTime.now();
+  DateTime monday = DateTime(now.year, now.month, now.day)
+      .subtract(Duration(days: now.weekday - 1));
 
-    String selectedDay = days[0];
-    String selectedMeal = meals[0];
+  // generate list of dates for the week
+  final List<DateTime> weekDates = List.generate(7, (i) => monday.add(Duration(days: i)));
+  
+  // Names of the days 
+  final List<String> dayNames = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 
-    final bool? confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Zum Wochenplan hinzufügen"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<String>(
-              initialValue: selectedDay,
-              items: days
-                  .map((d) => DropdownMenuItem(value: d, child: Text(d)))
-                  .toList(),
-              onChanged: (val) => selectedDay = val!,
-              decoration: const InputDecoration(labelText: "Tag"),
+  String selectedDayKey = DateFormat('yyyy-MM-dd').format(weekDates[0]); // Clé technique (ex: 2026-01-26)
+  String selectedMeal = 'Frühstück';
+
+  await showDialog(
+    context: context,
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Zum Wochenplan hinzufügen'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Dropdown for day selection
+                DropdownButton<String>(
+                  isExpanded: true,
+                  value: selectedDayKey,
+                  items: List.generate(7, (index) {
+                    final date = weekDates[index];
+                    final dateKey = DateFormat('yyyy-MM-dd').format(date);
+                    final displayDate = DateFormat('dd.MM.').format(date);
+                    
+                    return DropdownMenuItem(
+                      value: dateKey,
+                      child: Text('${dayNames[index]} ($displayDate)'),
+                    );
+                  }),
+                  onChanged: (val) => setDialogState(() => selectedDayKey = val!),
+                ),
+                const SizedBox(height: 16),
+                // Dropdown for meal type
+                DropdownButton<String>(
+                  isExpanded: true,
+                  value: selectedMeal,
+                  items: ['Frühstück', 'Mittagessen', 'Abendessen']
+                      .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                      .toList(),
+                  onChanged: (val) => setDialogState(() => selectedMeal = val!),
+                ),
+              ],
             ),
-            DropdownButtonFormField<String>(
-              initialValue: selectedMeal,
-              items: meals
-                  .map((m) => DropdownMenuItem(value: m, child: Text(m)))
-                  .toList(),
-              onChanged: (val) => selectedMeal = val!,
-              decoration: const InputDecoration(labelText: "Mahlzeit"),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Abbrechen"),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("Hinzufügen"),
-          ),
-        ],
-      ),
-    );
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
+              ElevatedButton(
+                onPressed: () async {
+                  try {
+                    // load current plan
+                    final currentPlan = await _dbService.loadWeekPlan();
 
-    if (confirm == true) {
-      try {
-        // load current plan, update and save
-        final currentPlan = await _dbService.loadWeekPlan();
-        if (!currentPlan.containsKey(selectedDay))
-          currentPlan[selectedDay] = {};
-        currentPlan[selectedDay]![selectedMeal] = widget.recipe.id!;
+                    // use the selected day and meal to add the recipe
+                    if (currentPlan[selectedDayKey] == null) {
+                      currentPlan[selectedDayKey] = {};
+                    }
+                    currentPlan[selectedDayKey]![selectedMeal] = widget.recipe.id;
 
-        await _dbService.saveWeekPlan(currentPlan);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("Zu $selectedDay ($selectedMeal) hinzugefügt!"),
-            ),
+                    // save the updated plan
+                    await _dbService.saveWeekPlan(currentPlan);
+                    
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Rezept hinzugefügt!')),
+                      );
+                    }
+                  } catch (e) {
+                    debugPrint("Error save: $e");
+                  }
+                },
+                child: const Text('Hinzufügen'),
+              ),
+            ],
           );
-        }
-      } catch (e) {
-        debugPrint("Error saving to plan: $e");
-      }
-    }
-  }
+        },
+      );
+    },
+  );
+}
 
   void _handleAddToShoppingList() async {
     try {
-      // On boucle sur tous les ingrédients de la recette pour les ajouter à la DB
+      // we assume ingredients have name, quantity, unit
       for (var ingredient in widget.recipe.ingredients) {
         await _dbService.addToShoppingList(
           ingredient.name,
@@ -337,9 +353,7 @@ Check out this delicious recipe!
                 case 'buy':
                   _handleAddToShoppingList();
                   break;
-                case 'delete':
-                  _confirmDelete();
-                  break;
+               
               }
             },
             itemBuilder: (context) => [
@@ -376,7 +390,7 @@ Check out this delicious recipe!
                   ],
                 ),
               ),
-              if (_isMine)
+             /* if (_isMine)
                 const PopupMenuItem(
                   value: 'delete',
                   child: Row(
@@ -386,7 +400,7 @@ Check out this delicious recipe!
                       Text("Löschen", style: TextStyle(color: Colors.red)),
                     ],
                   ),
-                ),
+                ),*/
             ],
           ),
         ],

@@ -440,7 +440,7 @@ Future<bool> isRecipeFavorite(String recipeId) async {
     try {
       final dynamic data = await _db
           .from('ratings_with_users')
-          .select('score, comment, created_at, user_email')
+          .select('score, comment, created_at, username')
           .eq('recipe_id', recipeId)
           .order('created_at', ascending: false);
 
@@ -451,7 +451,7 @@ Future<bool> isRecipeFavorite(String recipeId) async {
           'score': r['score'],
           'comment': r['comment'],
           'created_at': r['created_at'],
-          'user_name': r['user_email'] ?? 'Anonymous',
+          'user_name': r['username'] ?? 'Anonymous',
         };
       }).toList();
     } catch (e) {
@@ -718,6 +718,16 @@ Future<void> updateShoppingItemDetails(String id, String name, double quantity) 
 // delete a shopping item
 Future<void> deleteShoppingItem(String id) async {
   await _db.from('shopping_list').delete().eq('id', id);
+}
+// clear entire shopping list for current user
+
+Future<void> clearShoppingList() async {
+  try {
+    await _db.from('shopping_list').delete().eq('user_id', userId);
+  } catch (e) {
+    debugPrint("Fehler beim Löschen der Liste: $e");
+    rethrow;
+  }
 }
 
 }
