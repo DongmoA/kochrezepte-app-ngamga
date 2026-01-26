@@ -223,14 +223,16 @@ zum Laufen der App.
 
 Der bevorzügte Browser auswählen:
 [1]: Windows (windows)
+
 [2]: Chrome (chrome)
+
 [3]: Edge (edge)
 
 **4- Registrierung/Anmeldung**
+
 Der Registrierungsprozess beginnt mit dem Start der Anwendung und der Anzeige des Anmelde-Screens. Dort gibt der Benutzer seine E-Mail-Adresse, einen Benutzernamen, ein Passwort inklusive Passwortbestätigung ein sowie seine Ernährungspräferenz. Anschließend werden die Eingaben validiert. Nachdem der Benutzer auf den Button „Registrieren“ klickt, wird ein API-Aufruf an Supabase Auth ausgeführt. Eine E-Mail zur Verifizierung der Adresse wird versendet. Danach erfolgt die automatische Erstellung des Benutzerprofils und der Benutzer wird zum Home-Screen weitergeleitet. Der Registrierungsprozess ist damit abgeschlossen und der Benutzer ist eingeloggt.
 
-Wie Rezepte erstellt werden, wird im Abschnitt "Datenfluss Beispiele" beschrieben. Dort werden 
-weitere Worklows dargestellt.
+Der Ablauf der Rezepterstellung sowie weitere wichtige Workflows sind im Abschnitt Datenfluss-Beispiele detailliert dokumentiert.
 
 
 #### Verwendete Packages (pubspec.yaml)
