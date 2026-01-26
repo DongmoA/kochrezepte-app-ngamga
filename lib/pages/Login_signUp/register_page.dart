@@ -159,6 +159,8 @@ class _RegisterPageState extends State<RegisterPage> {
       backgroundColor: const Color(0xFFF5E6D3),
       body: SafeArea(
         child: Center(
+          child: ScrollConfiguration(
+  behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
             child: Container(
@@ -549,6 +551,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                     ),
                   ],
+                ),
                 ),
               ),
             ),
