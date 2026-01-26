@@ -69,7 +69,9 @@ class RecipeCard extends StatelessWidget {
                       constraints: const BoxConstraints(),
                       icon: Icon(
                         isFavorite ? Icons.bookmark : Icons.bookmark_border,
-                        color: Colors.white,
+                        color: isFavorite
+                            ? const Color(0xFFFF5722)
+                            : Colors.white,
                       ),
                       onPressed: onFavoriteToggle,
                     ),

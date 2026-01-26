@@ -6,6 +6,7 @@ import 'package:kochrezepte_app/supabase/nutrition_api_service.dart';
 
 import '../../models/recipe.dart';
 import '../../supabase/database_service.dart';
+import '../../supabase/nutrition_api_service.dart';
 
 class RecipeFormPage extends StatefulWidget {
   final Recipe? recipeToEdit;
@@ -49,20 +50,32 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
 
   bool get _isEdit => widget.recipeToEdit != null;
 
-  List<String> get _availableTags => [
-    'Asiatisch',
-    'Bowl',
-    'Curry',
-    'Fisch',
-    'Gesund',
-    'Italienisch',
-    'Pasta',
-    'Schnell',
-    'Vegan',
-    'Vegetarisch',
-  ];
+// Diet tags
+List<String> get _dietTags => [
+  'Fructosefrei',
+  'Glutenfrei',
+  'Laktosefrei',
+  'Pescetarier',
+  'Vegan',
+  'Vegetarisch',
+];
 
-  List<String> get _availableUnits => ['g', 'ml', 'Stück', 'Teelöffel'];
+// Additional tags
+List<String> get _additionalTags => [
+  'Asiatisch',
+  'Bowl',
+  'Curry',
+  'Fisch',
+  'Gesund',
+  'Italienisch',
+  'Pasta',
+  'Schnell',
+];
+
+// All tags combined (pour compatibilité si nécessaire)
+List<String> get _availableTags => [..._dietTags, ..._additionalTags];
+
+  List<String> get _availableUnits => ['g', 'ml', 'Stück'];
 
   @override
   void initState() {
@@ -237,7 +250,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Bitte fülle die Menge des Zutats aus'),
-          backgroundColor: Colors.red,
+          backgroundColor: Colors.orange,
         ),
       );
       return;
@@ -248,7 +261,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Bitte gib eine gültige Menge ein'),
-          backgroundColor: Colors.red,
+          backgroundColor: Colors.orange,
         ),
       );
       return;
@@ -274,7 +287,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Füge zuerst Zutaten hinzu'),
-          backgroundColor: Colors.red,
+          backgroundColor: Colors.orange,
         ),
       );
       return;
@@ -428,8 +441,6 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
           quantityInGrams = ing.quantity;
         } else if (ing.unit == 'Stück') {
           quantityInGrams = ing.quantity * 50;
-        } else if (ing.unit == 'Teelöffel') {
-          quantityInGrams = ing.quantity * 5;
         }
 
         final factor = quantityInGrams / 100.0;
@@ -691,7 +702,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                           const Icon(
                             Icons.info_outline,
                             size: 16,
-                            color: Colors.red,
+                            color: Colors.orange,
                           ),
                           const SizedBox(width: 8),
                           Expanded(
@@ -964,7 +975,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+      onPopInvoked: (bool didPop) async {
         if (didPop) return;
 
         final shouldPop = await _onWillPop();
@@ -1289,7 +1300,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                                 controller: _ingredientQuantityController,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.normal,
-                                  fontSize: 15,
+                                  fontSize: 16,
                                 ),
                                 decoration: _buildInputDecoration('250'),
                                 keyboardType:
@@ -1305,7 +1316,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 8), 
                         Expanded(
                           flex: 2,
                           child: Column(
@@ -1316,11 +1327,10 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                                 value: _selectedIngredientUnit,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w600,
-                                  fontSize: 15,
+                                  fontSize: 16,
                                   color: Colors.black87,
                                 ),
                                 decoration: _buildInputDecoration(''),
-                                isDense: true,
                                 items: _availableUnits.map((unit) {
                                   return DropdownMenuItem<String>(
                                     value: unit,
@@ -1338,28 +1348,31 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                             ],
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _addIngredientDirect,
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Hinzufügen'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFF5722),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 14,
+                        const SizedBox(width: 6), 
+                        Padding(
+                          padding: const EdgeInsets.only(top: 24),
+                          child: SizedBox(
+                            width: 48,
+                            height: 56,
+                            child: ElevatedButton(
+                              onPressed: _addIngredientDirect,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFFF5722),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                padding: EdgeInsets.zero, 
+                                elevation: 0,
+                              ),
+                              child: const Icon(
+                                Icons.add,
+                                size: 24,
+                              ), 
+                            ),
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          elevation: 0,
                         ),
-                      ),
+                      ],
                     ),
                     if (_ingredients.isNotEmpty) ...[
                       const SizedBox(height: 16),
@@ -1439,24 +1452,21 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                   children: [
                     _buildFieldLabel('Schritt-für-Schritt Anleitung'),
                     const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _addStep,
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Schritt hinzufügen'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFF5722),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 14,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          elevation: 0,
+                    ElevatedButton.icon(
+                      onPressed: _addStep,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Schritt hinzufügen'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF5722),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 14,
                         ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
                       ),
                     ),
                     if (_steps.isNotEmpty) ...[
@@ -1581,7 +1591,7 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildFieldLabel('Kalorien (kcal)'),
+                              _buildFieldLabel('Kalorien'),
                               TextFormField(
                                 controller: _caloriesController,
                                 style: const TextStyle(
@@ -1690,117 +1700,140 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
               const SizedBox(height: 16),
 
               // Tags Card
-              _buildCard(
-                title: 'Tags / Kategorien',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildFieldLabel('🍽️ Mahlzeit'),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: MealType.values.map((type) {
-                        final isSelected = _selectedMealType == type;
-                        final label = _getMealTypeLabel(type);
+             _buildCard(
+  title: 'Tags / Kategorien',
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _buildFieldLabel('🍽️ Mahlzeit'),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: MealType.values.map((type) {
+          final isSelected = _selectedMealType == type;
+          final label = _getMealTypeLabel(type);
 
-                        return ChoiceChip(
-                          label: Text(label),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            setState(() {
-                              _selectedMealType = selected ? type : null;
-                              _hasUnsavedChanges = true;
-                            });
-                          },
-                          backgroundColor: Colors.grey[100],
-                          selectedColor: const Color(
-                            0xFFFF5722,
-                          ).withOpacity(0.15),
-                          labelStyle: TextStyle(
-                            color: isSelected
-                                ? const Color(0xFFFF5722)
-                                : Colors.black87,
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                            fontSize: 13,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            side: BorderSide(
-                              color: isSelected
-                                  ? const Color(0xFFFF5722)
-                                  : Colors.grey[300]!,
-                              width: 1.5,
-                            ),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                        );
-                      }).toList(),
-                    ),
-
-                    const SizedBox(height: 20),
-                    const Divider(),
-                    const SizedBox(height: 16),
-
-                    _buildFieldLabel('🏷️ Tags'),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _availableTags.map((tag) {
-                        final isSelected = _tags.contains(tag);
-                        return FilterChip(
-                          label: Text(tag),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            setState(() {
-                              if (selected) {
-                                _tags.add(tag);
-                              } else {
-                                _tags.remove(tag);
-                              }
-                              _hasUnsavedChanges = true;
-                            });
-                          },
-                          backgroundColor: Colors.grey[100],
-                          selectedColor: const Color(
-                            0xFFFF5722,
-                          ).withOpacity(0.15),
-                          checkmarkColor: const Color(0xFFFF5722),
-                          labelStyle: TextStyle(
-                            color: isSelected
-                                ? const Color(0xFFFF5722)
-                                : Colors.black87,
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                            fontSize: 13,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            side: BorderSide(
-                              color: isSelected
-                                  ? const Color(0xFFFF5722)
-                                  : Colors.grey[300]!,
-                              width: 1.5,
-                            ),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                ),
+          return ChoiceChip(
+            label: Text(label),
+            selected: isSelected,
+            onSelected: (selected) {
+              setState(() {
+                _selectedMealType = selected ? type : null;
+                _hasUnsavedChanges = true;
+              });
+            },
+            backgroundColor: Colors.grey[100],
+            selectedColor: const Color(0xFFFF5722).withOpacity(0.15),
+            labelStyle: TextStyle(
+              color: isSelected ? const Color(0xFFFF5722) : Colors.black87,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              fontSize: 13,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: BorderSide(
+                color: isSelected ? const Color(0xFFFF5722) : Colors.grey[300]!,
+                width: 1.5,
               ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          );
+        }).toList(),
+      ),
 
+      const SizedBox(height: 20),
+      const Divider(),
+      const SizedBox(height: 16),
+
+      // SECTION ERNÄHRUNGSWEISE
+      _buildFieldLabel('🌱 Ernährungsweise'),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: _dietTags.map((tag) {
+          final isSelected = _tags.contains(tag);
+          return FilterChip(
+            label: Text(tag),
+            selected: isSelected,
+            onSelected: (selected) {
+              setState(() {
+                if (selected) {
+                  _tags.add(tag);
+                } else {
+                  _tags.remove(tag);
+                }
+                _hasUnsavedChanges = true;
+              });
+            },
+            backgroundColor: Colors.grey[100],
+            selectedColor: const Color(0xFFFF5722).withOpacity(0.15),
+            checkmarkColor: const Color(0xFFFF5722),
+            labelStyle: TextStyle(
+              color: isSelected ? const Color(0xFFFF5722) : Colors.black87,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              fontSize: 13,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: BorderSide(
+                color: isSelected ? const Color(0xFFFF5722) : Colors.grey[300]!,
+                width: 1.5,
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          );
+        }).toList(),
+      ),
+
+      const SizedBox(height: 20),
+      const Divider(),
+      const SizedBox(height: 16),
+
+      // SECTION WEITERE TAGS
+      _buildFieldLabel('🏷️ Weitere Tags'),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: _additionalTags.map((tag) {
+          final isSelected = _tags.contains(tag);
+          return FilterChip(
+            label: Text(tag),
+            selected: isSelected,
+            onSelected: (selected) {
+              setState(() {
+                if (selected) {
+                  _tags.add(tag);
+                } else {
+                  _tags.remove(tag);
+                }
+                _hasUnsavedChanges = true;
+              });
+            },
+            backgroundColor: Colors.grey[100],
+            selectedColor: const Color(0xFFFF5722).withOpacity(0.15),
+            checkmarkColor: const Color(0xFFFF5722),
+            labelStyle: TextStyle(
+              color: isSelected ? const Color(0xFFFF5722) : Colors.black87,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              fontSize: 13,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: BorderSide(
+                color: isSelected ? const Color(0xFFFF5722) : Colors.grey[300]!,
+                width: 1.5,
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          );
+        }).toList(),
+      ),
+    ],
+  ),
+),
               const SizedBox(height: 32),
 
               // Bottom Buttons
@@ -1860,8 +1893,8 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
                           )
                         : Text(
                             _isEdit
-                                ? 'Aktualisieren'
-                                : 'Erstellen',
+                                ? 'Rezept aktualisieren'
+                                : 'Rezept erstellen',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
@@ -2013,7 +2046,7 @@ class _IngredientDialogState extends State<_IngredientDialog> {
   final _quantityController = TextEditingController();
   String _selectedUnit = 'g';
 
-  List<String> get _availableUnits => ['g', 'ml', 'Stück', 'Teelöffel'];
+  List<String> get _availableUnits => ['g', 'ml', 'Stück'];
 
   @override
   void initState() {
@@ -2084,7 +2117,7 @@ class _IngredientDialogState extends State<_IngredientDialog> {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Bitte fülle alle Felder des Zutats aus'),
-                  backgroundColor: Colors.red,
+                  backgroundColor: Colors.orange,
                 ),
               );
               return;
@@ -2097,7 +2130,7 @@ class _IngredientDialogState extends State<_IngredientDialog> {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Bitte gib eine gültige Menge ein'),
-                  backgroundColor: Colors.red,
+                  backgroundColor: Colors.orange,
                 ),
               );
               return;
