@@ -133,9 +133,9 @@ flutter run
 ```
 
 **Browser auswählen**
-- [1]: Windows (windows)
-- [2]: Chrome (chrome)
-- [3]: Edge (edge)
+- 1 -> Windows (windows)
+- 2 -> Chrome (chrome)
+- 3 -> Edge (edge)
 
 ### Verwendete Packages
 
