@@ -109,7 +109,10 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
       _carbsController.text = r.carbs?.toString() ?? '';
       _fatController.text = r.fat?.toString() ?? '';
       _ingredients.addAll(r.ingredients);
-      _steps.addAll(r.steps);
+      // Sortiere Schritte nach stepNumber
+      final sortedSteps = List<RecipeStep>.from(r.steps)
+        ..sort((a, b) => a.stepNumber.compareTo(b.stepNumber));
+      _steps.addAll(sortedSteps);
       _tags.addAll(r.tags);
       _hasUnsavedChanges = false;
     }
@@ -771,21 +774,29 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
   }
 
   void _editStep(int index, RecipeStep currentStep) {
-    showDialog(
-      context: context,
-      builder: (context) => _StepDialog(
-        stepNumber: currentStep.stepNumber,
-        initialInstruction: currentStep.instruction,
-        onAdd: (step) {
-          setState(() {
-            _steps[index] = step;
-            _hasUnsavedChanges = true;
-          });
-        },
-      ),
-    );
-  }
-
+  // Sortiere zuerst die Schritte, um die korrekte Anzeigenummer zu bekommen
+  final sortedSteps = List<RecipeStep>.from(_steps)
+    ..sort((a, b) => a.stepNumber.compareTo(b.stepNumber));
+  
+  final displayNumber = sortedSteps.indexOf(currentStep) + 1;
+  
+  showDialog(
+    context: context,
+    builder: (context) => _StepDialog(
+      stepNumber: displayNumber,
+      initialInstruction: currentStep.instruction,
+      onAdd: (step) {
+        setState(() {
+          _steps[index] = RecipeStep(
+            stepNumber: _steps[index].stepNumber, // Behalte die Original-Nummer
+            instruction: step.instruction,
+          );
+          _hasUnsavedChanges = true;
+        });
+      },
+    ),
+  );
+}
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -1129,85 +1140,101 @@ class _RecipeFormPageState extends State<RecipeFormPage> {
     }).toList();
   }
 
-  Widget _buildStepsCard() {
-    return _buildCard(
-      title: 'Zubereitung *',
-      child: Column(
+Widget _buildStepsCard() {
+  return _buildCard(
+    title: 'Zubereitung *',
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildFieldLabel('Schritt-für-Schritt Anleitung'),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _addStep,
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Schritt hinzufügen'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF5722),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              elevation: 0,
+            ),
+          ),
+        ),
+        if (_steps.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          const Divider(),
+          const SizedBox(height: 12),
+          ..._buildStepsList(),
+        ],
+      ],
+    ),
+  );
+}
+
+List<Widget> _buildStepsList() {
+  // Erstelle eine sortierte Kopie der Schritte
+  final sortedSteps = List<RecipeStep>.from(_steps)
+    ..sort((a, b) => a.stepNumber.compareTo(b.stepNumber));
+
+  return sortedSteps.asMap().entries.map((entry) {
+    final sortedIndex = entry.key; // Index in der sortierten Liste (0, 1, 2...)
+    final step = entry.value; // Der Schritt selbst
+    
+    // Finde den ECHTEN Index in der Original-_steps-Liste
+    final originalIndex = _steps.indexWhere((s) => 
+      s.stepNumber == step.stepNumber && s.instruction == step.instruction
+    );
+    
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildFieldLabel('Schritt-für-Schritt Anleitung'),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _addStep,
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Schritt hinzufügen'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF5722),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                elevation: 0,
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF5722),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Center(
+              child: Text(
+                '${sortedIndex + 1}', // Anzeige: 1, 2, 3, 4, 5...
+                style: const TextStyle(
+                    color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
               ),
             ),
           ),
-          if (_steps.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            const Divider(),
-            const SizedBox(height: 12),
-            ..._steps.asMap().entries.map((entry) {
-              final index = entry.key;
-              final step = entry.value;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFF5722),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Center(
-                        child: Text(
-                          '${step.stepNumber}',
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(child: Text(step.instruction, style: const TextStyle(fontSize: 14))),
-                    IconButton(
-                      icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.blue),
-                      onPressed: () => _editStep(index, step),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
-                      onPressed: () {
-                        setState(() {
-                          _steps.removeAt(index);
-                          for (int i = 0; i < _steps.length; i++) {
-                            _steps[i] =
-                                RecipeStep(stepNumber: i + 1, instruction: _steps[i].instruction);
-                          }
-                          _hasUnsavedChanges = true;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ],
+          const SizedBox(width: 12),
+          Expanded(child: Text(step.instruction, style: const TextStyle(fontSize: 14))),
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.blue),
+            onPressed: () => _editStep(originalIndex, step),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+            onPressed: () {
+              setState(() {
+                _steps.removeAt(originalIndex);
+                // Renummeriere alle Schritte neu
+                for (int i = 0; i < _steps.length; i++) {
+                  _steps[i] = RecipeStep(
+                    stepNumber: i + 1, 
+                    instruction: _steps[i].instruction
+                  );
+                }
+                _hasUnsavedChanges = true;
+              });
+            },
+          ),
         ],
       ),
     );
-  }
-
+  }).toList();
+}
   Widget _buildNutritionCard() {
     return _buildCard(
       title: 'Nährwerte pro Portion',

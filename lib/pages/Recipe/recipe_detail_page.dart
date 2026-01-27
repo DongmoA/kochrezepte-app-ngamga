@@ -69,94 +69,116 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
   // Add recipe to weekly plan
   Future<void> _showAddToWeeklyPlanDialog() async {
-  // Calculate the current week's Monday
-  DateTime now = DateTime.now();
-  DateTime monday = DateTime(now.year, now.month, now.day)
-      .subtract(Duration(days: now.weekday - 1));
+    // Calculate the current week's Monday
+    DateTime now = DateTime.now();
+    DateTime monday = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(Duration(days: now.weekday - 1));
 
-  // generate list of dates for the week
-  final List<DateTime> weekDates = List.generate(7, (i) => monday.add(Duration(days: i)));
-  
-  // Names of the days 
-  final List<String> dayNames = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+    // generate list of dates for the week
+    final List<DateTime> weekDates = List.generate(
+      7,
+      (i) => monday.add(Duration(days: i)),
+    );
 
-  String selectedDayKey = DateFormat('yyyy-MM-dd').format(weekDates[0]); // Clé technique (ex: 2026-01-26)
-  String selectedMeal = 'Frühstück';
+    // Names of the days
+    final List<String> dayNames = [
+      'Montag',
+      'Dienstag',
+      'Mittwoch',
+      'Donnerstag',
+      'Freitag',
+      'Samstag',
+      'Sonntag',
+    ];
 
-  await showDialog(
-    context: context,
-    builder: (context) {
-      return StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            title: const Text('Zum Wochenplan hinzufügen'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Dropdown for day selection
-                DropdownButton<String>(
-                  isExpanded: true,
-                  value: selectedDayKey,
-                  items: List.generate(7, (index) {
-                    final date = weekDates[index];
-                    final dateKey = DateFormat('yyyy-MM-dd').format(date);
-                    final displayDate = DateFormat('dd.MM.').format(date);
-                    
-                    return DropdownMenuItem(
-                      value: dateKey,
-                      child: Text('${dayNames[index]} ($displayDate)'),
-                    );
-                  }),
-                  onChanged: (val) => setDialogState(() => selectedDayKey = val!),
+    String selectedDayKey = DateFormat(
+      'yyyy-MM-dd',
+    ).format(weekDates[0]); // Clé technique (ex: 2026-01-26)
+    String selectedMeal = 'Frühstück';
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Zum Wochenplan hinzufügen'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Dropdown for day selection
+                  DropdownButton<String>(
+                    isExpanded: true,
+                    value: selectedDayKey,
+                    items: List.generate(7, (index) {
+                      final date = weekDates[index];
+                      final dateKey = DateFormat('yyyy-MM-dd').format(date);
+                      final displayDate = DateFormat('dd.MM.').format(date);
+
+                      return DropdownMenuItem(
+                        value: dateKey,
+                        child: Text('${dayNames[index]} ($displayDate)'),
+                      );
+                    }),
+                    onChanged: (val) =>
+                        setDialogState(() => selectedDayKey = val!),
+                  ),
+                  const SizedBox(height: 16),
+                  // Dropdown for meal type
+                  DropdownButton<String>(
+                    isExpanded: true,
+                    value: selectedMeal,
+                    items: ['Frühstück', 'Mittagessen', 'Abendessen']
+                        .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                        .toList(),
+                    onChanged: (val) =>
+                        setDialogState(() => selectedMeal = val!),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Abbrechen'),
                 ),
-                const SizedBox(height: 16),
-                // Dropdown for meal type
-                DropdownButton<String>(
-                  isExpanded: true,
-                  value: selectedMeal,
-                  items: ['Frühstück', 'Mittagessen', 'Abendessen']
-                      .map((m) => DropdownMenuItem(value: m, child: Text(m)))
-                      .toList(),
-                  onChanged: (val) => setDialogState(() => selectedMeal = val!),
+                ElevatedButton(
+                  onPressed: () async {
+                    try {
+                      // load current plan
+                      final currentPlan = await _dbService.loadWeekPlan();
+
+                      // use the selected day and meal to add the recipe
+                      if (currentPlan[selectedDayKey] == null) {
+                        currentPlan[selectedDayKey] = {};
+                      }
+                      currentPlan[selectedDayKey]![selectedMeal] =
+                          widget.recipe.id;
+
+                      // save the updated plan
+                      await _dbService.saveWeekPlan(currentPlan);
+
+                      if (mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Rezept hinzugefügt!')),
+                        );
+                      }
+                    } catch (e) {
+                      debugPrint("Error save: $e");
+                    }
+                  },
+                  child: const Text('Hinzufügen'),
                 ),
               ],
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
-              ElevatedButton(
-                onPressed: () async {
-                  try {
-                    // load current plan
-                    final currentPlan = await _dbService.loadWeekPlan();
-
-                    // use the selected day and meal to add the recipe
-                    if (currentPlan[selectedDayKey] == null) {
-                      currentPlan[selectedDayKey] = {};
-                    }
-                    currentPlan[selectedDayKey]![selectedMeal] = widget.recipe.id;
-
-                    // save the updated plan
-                    await _dbService.saveWeekPlan(currentPlan);
-                    
-                    if (mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Rezept hinzugefügt!')),
-                      );
-                    }
-                  } catch (e) {
-                    debugPrint("Error save: $e");
-                  }
-                },
-                child: const Text('Hinzufügen'),
-              ),
-            ],
-          );
-        },
-      );
-    },
-  );
-}
+            );
+          },
+        );
+      },
+    );
+  }
 
   void _handleAddToShoppingList() async {
     try {
@@ -353,7 +375,6 @@ Check out this delicious recipe!
                 case 'buy':
                   _handleAddToShoppingList();
                   break;
-               
               }
             },
             itemBuilder: (context) => [
@@ -390,7 +411,7 @@ Check out this delicious recipe!
                   ],
                 ),
               ),
-             /* if (_isMine)
+              /* if (_isMine)
                 const PopupMenuItem(
                   value: 'delete',
                   child: Row(
@@ -558,9 +579,16 @@ Check out this delicious recipe!
                   _buildSectionCard(
                     title: "Zubereitung",
                     child: Column(
-                      children: recipe.steps
-                          .map((step) => StepItem(step: step))
-                          .toList(),
+                      children: () {
+                        // Sortiere die Schritte nach stepNumber
+                        final sortedSteps = List<RecipeStep>.from(
+                          recipe.steps,
+                        )..sort((a, b) => a.stepNumber.compareTo(b.stepNumber));
+
+                        return sortedSteps
+                            .map((step) => StepItem(step: step))
+                            .toList();
+                      }(),
                     ),
                   ),
 
