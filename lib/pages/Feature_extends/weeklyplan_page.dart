@@ -337,36 +337,146 @@ class _WeeklyplanPageState extends State<WeeklyplanPage> {
     }
   }
 
-  void _generateShoppingList() {
-    final selectedRecipes = <Recipe>[];
-    for (var day in _weekDays) {
-      for (var meal in _meals) {
-        final recipe = _weekPlan[day]![meal];
-        if (recipe != null) {
-          selectedRecipes.add(recipe);
-        }
+  Future<void> _generateShoppingList() async {
+  // 1. Alle Rezepte aus dem Wochenplan sammeln
+  final selectedRecipes = <Recipe>[];
+  for (var day in _weekDays) {
+    for (var meal in _meals) {
+      final recipe = _weekPlan[day]![meal];
+      if (recipe != null) {
+        selectedRecipes.add(recipe);
       }
     }
+  }
 
-    if (selectedRecipes.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Bitte wähle zuerst einige Rezepte aus'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
+  if (selectedRecipes.isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Einkaufsliste für ${selectedRecipes.length} Rezepte wird erstellt...',
-        ),
-        backgroundColor: const Color(0xFFFF5722),
+      const SnackBar(
+        content: Text('Bitte wähle zuerst einige Rezepte aus'),
+        backgroundColor: Colors.orange,
       ),
     );
+    return;
   }
+
+  // 2. Zutaten nach Name + Einheit gruppieren
+  final Map<String, Map<String, dynamic>> groupedIngredients = {};
+
+  for (var recipe in selectedRecipes) {
+    for (var ingredient in recipe.ingredients) {
+      final key = '${ingredient.name.toLowerCase()}_${ingredient.unit.toLowerCase()}';
+      
+      if (groupedIngredients.containsKey(key)) {
+        // Mengen addieren
+        groupedIngredients[key]!['quantity'] += ingredient.quantity;
+      } else {
+        // Neue Zutat hinzufügen
+        groupedIngredients[key] = {
+          'name': ingredient.name,
+          'quantity': ingredient.quantity,
+          'unit': ingredient.unit,
+        };
+      }
+    }
+  }
+
+  // 3. Bestätigungsdialog anzeigen
+  final shouldAdd = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Einkaufsliste erstellen'),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 300,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${selectedRecipes.length} Rezepte, ${groupedIngredients.length} Zutaten:',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: ListView.builder(
+                itemCount: groupedIngredients.length,
+                itemBuilder: (context, index) {
+                  final ingredient = groupedIngredients.values.elementAt(index);
+                  final qty = ingredient['quantity'] as double;
+                  final qtyDisplay = qty == qty.roundToDouble() 
+                      ? qty.toInt().toString() 
+                      : qty.toStringAsFixed(1);
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.check_circle_outline, size: 16, color: Colors.green),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '$qtyDisplay ${ingredient['unit']} ${ingredient['name']}',
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Abbrechen'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, true),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFFF5722),
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Zur Einkaufsliste hinzufügen'),
+        ),
+      ],
+    ),
+  );
+
+  if (shouldAdd != true) return;
+
+  // 4. Alle Zutaten zur Einkaufsliste hinzufügen
+  try {
+    for (var ingredient in groupedIngredients.values) {
+      await _dbService.addToShoppingList(
+        ingredient['name'] as String,
+        ingredient['quantity'] as double,
+        ingredient['unit'] as String,
+      );
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${groupedIngredients.length} Zutaten zur Einkaufsliste hinzugefügt!',
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Fehler: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+}
 
   Recipe? _getFirstRecipeOfDay(String day) {
     for (var meal in _meals) {
