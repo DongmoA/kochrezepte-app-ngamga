@@ -96,7 +96,34 @@ class _RegisterPageState extends State<RegisterPage> {
           _nameController.text.trim(),
         );
 
-        if (usernameTaken) {
+        // Wenn die Prüfung fehlgeschlagen ist (null), stoppen
+        if (usernameTaken == null) {
+          setState(() => _isLoading = false);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.error_outline, color: Colors.white),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Verbindungsfehler. Bitte versuche es erneut.',
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: Colors.red[700],
+                duration: const Duration(seconds: 4),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        }
+
+        // Wenn der Benutzername bereits vergeben ist, stoppen
+        if (usernameTaken == true) {
           setState(() => _isLoading = false);
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -118,7 +145,7 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
             );
           }
-          return; // Stoppe hier, keine Registrierung
+          return;
         }
 
         // Registrierung durchführen

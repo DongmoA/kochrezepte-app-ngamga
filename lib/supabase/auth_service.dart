@@ -7,7 +7,8 @@ class AuthService {
   final supaClient = SupabaseClientManager.client;
 
   // Prüfen ob der Benutzername bereits vergeben ist
-  Future<bool> isUsernameTaken(String username) async {
+  // Prüfen ob der Benutzername bereits vergeben ist
+  Future<bool?> isUsernameTaken(String username) async {
     try {
       final result = await supaClient
           .from('profiles')
@@ -18,7 +19,8 @@ class AuthService {
       return result != null;
     } catch (e) {
       debugPrint('Fehler bei der Überprüfung des Benutzernamens: $e');
-      return false;
+      // Rückgabe null bei Fehler, um anzuzeigen, dass die Prüfung fehlgeschlagen ist
+      return null;
     }
   }
   Future<AuthResponse> signUp({

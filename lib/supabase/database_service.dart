@@ -15,6 +15,21 @@ class DatabaseService {
 
   // Helper: convertit n'importe quel id Supabase (int/uuid) en String
   String _id(dynamic value) => value?.toString() ?? '';
+  // Ernährungspräferenz des Benutzers abrufen
+  Future<String?> getUserDietPreference() async {
+    try {
+      final result = await _db
+          .from('profiles')
+          .select('diet_preference')
+          .eq('id', userId)
+          .maybeSingle();
+      
+      return result?['diet_preference'] as String?;
+    } catch (e) {
+      debugPrint('Fehler beim Abrufen der Präferenz: $e');
+      return null;
+    }
+  }
 
   // ----------------------------------------
   // CREATE RECIPE
@@ -377,14 +392,46 @@ Future<bool> isRecipeFavorite(String recipeId) async {
             break;
 
           case RecipeFilter.newest:
-            // Calculate the date for 1 days ago
-            final lastWeek = DateTime.now().subtract(const Duration(days: 1)).toIso8601String();
+            // Datum für die letzten 7 Tage berechnen
+            final lastWeek = DateTime.now().subtract(const Duration(days: 7)).toIso8601String();
             
-            // Apply filter: created_at Greater Than or Equal (gte) to lastWeek
+            // Ernährungspräferenz des Benutzers abrufen
+            final dietPreference = await getUserDietPreference();
+            debugPrint('DEBUG: Benutzer-Präferenz = $dietPreference');
+            
+            // Filter anwenden: nur Rezepte anderer Benutzer
             query = query
+                .neq('owner_id', userId)
                 .gte('created_at', lastWeek)
                 .order('created_at', ascending: false);
-            break;
+            
+            // Ergebnisse abrufen
+            final response = await query;
+            var filteredData = response as List<dynamic>;
+            debugPrint('DEBUG: Rezepte vor Filter = ${filteredData.length}');
+            
+            // Nach Ernährungspräferenz filtern (wenn vorhanden und nicht "Keine")
+            if (dietPreference != null && dietPreference != 'Keine') {
+              filteredData = filteredData.where((recipe) {
+                // Tags aus recipe_tags extrahieren
+                final recipeTags = recipe['recipe_tags'] as List<dynamic>? ?? [];
+                final tagNames = recipeTags
+                    .map((rt) => rt['tags']?['name']?.toString().toLowerCase() ?? '')
+                    .toList();
+                debugPrint('DEBUG: Rezept "${recipe['title']}" hat Tags: $tagNames');
+                
+                // Prüfen ob ein Tag der Präferenz entspricht
+                return tagNames.any((tag) => 
+                  tag.contains(dietPreference.toLowerCase())
+                );
+              }).toList();
+            }
+            
+            debugPrint('DEBUG: Rezepte nach Filter = ${filteredData.length}');
+            
+            return filteredData
+                .map((json) => Recipe.fromJson(json as Map<String, dynamic>))
+                .toList();
 
           case RecipeFilter.popular:
             query = query
