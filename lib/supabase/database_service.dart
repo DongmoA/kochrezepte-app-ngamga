@@ -388,6 +388,7 @@ Future<bool> isRecipeFavorite(String recipeId) async {
 
           case RecipeFilter.popular:
             query = query
+                .gte('average_rating', 3)
                 .order('average_rating', ascending: false)
                 .order('total_ratings', ascending: false);
             break;
