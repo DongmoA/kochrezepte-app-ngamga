@@ -392,8 +392,8 @@ Future<bool> isRecipeFavorite(String recipeId) async {
             break;
 
           case RecipeFilter.newest:
-            // Datum für die letzten 7 Tage berechnen
-            final lastWeek = DateTime.now().subtract(const Duration(days: 7)).toIso8601String();
+            // Datum für die letzten 3 Tage berechnen
+            final lastWeek = DateTime.now().subtract(const Duration(days: 3)).toIso8601String();
             
             // Ernährungspräferenz des Benutzers abrufen
             final dietPreference = await getUserDietPreference();
