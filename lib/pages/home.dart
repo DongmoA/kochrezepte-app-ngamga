@@ -33,13 +33,23 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
 
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  String? _userDietPreference;
 
-  @override
+ @override
   void initState() {
     super.initState();
+    _loadUserPreference();
     _loadRecipes(filter: _currentFilter);
   }
 
+  Future<void> _loadUserPreference() async {
+    final preference = await _dbService.getUserDietPreference();
+    if (mounted) {
+      setState(() {
+        _userDietPreference = preference;
+      });
+    }
+  }
   @override
   void dispose() {
     _searchController.dispose();
@@ -299,13 +309,18 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
           ],
         ),
         actions: [
-          IconButton(
+       IconButton(
             icon: const Icon(Icons.person),
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ProfilePage()),
               );
+              // Nach Rückkehr: Präferenz und Rezepte neu laden
+              _loadUserPreference();
+              if (_currentFilter == RecipeFilter.newest) {
+                _loadRecipes(filter: _currentFilter);
+              }
             },
           ),
           IconButton(
@@ -421,6 +436,43 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
                 ),
 
                 const SizedBox(width: 12),
+
+                // Tag für Ernährungspräferenz bei "Neu" Filter
+                if (_currentFilter == RecipeFilter.newest &&
+                    _userDietPreference != null &&
+                    _userDietPreference != 'Keine')
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.eco,
+                            size: 16,
+                            color: Colors.green,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _userDietPreference!,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Colors.green,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
 
                 if (_selectedTags.isNotEmpty ||
                     _selectedTime != null ||
