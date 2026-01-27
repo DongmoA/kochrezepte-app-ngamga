@@ -1,84 +1,144 @@
-# RecipeShare - Projektdokumentation
+<div align="center">
 
-**Eine Cross-Platform Kochrezepte-Verwaltungs- und Austausch-App**
+# 🍳 RecipeShare
 
-![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat-square&logo=flutter&logoColor=white)
-![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
-![Dart](https://img.shields.io/badge/Dart-0175C2?style=flat-square&logo=dart&logoColor=white)
+### Eine Cross-Platform Kochrezepte-Verwaltungs- und Austausch-App
 
-*Entwickelt im Rahmen von Cross-Platform Development WiSe25/26*
+![Flutter](https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
+![Dart](https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white)
+
+**Entwickelt im Rahmen von Cross-Platform Development WiSe25/26**
+
+</div>
 
 ---
 
 ## Inhaltsverzeichnis
 
-1. [Projektübersicht](#projektübersicht)
-2. [Technische Umsetzung](#technische-umsetzung)
-3. [Systemarchitektur](#systemarchitektur)
-4. [Anforderungen & Umsetzung](#anforderungen--umsetzung)
-5. [Fazit](#fazit)
+1. [Projektübersicht](#1-projektübersicht)
+2. [Technische Umsetzung](#2-technische-umsetzung)
+3. [Systemarchitektur](#3-systemarchitektur)
+4. [Anforderungen und Umsetzung](#4-anforderungen-und-umsetzung)
+5. [Fazit](#5-fazit)
 
 ---
 
-## Projektübersicht
+## 1. Projektübersicht
 
-### Was ist RecipeShare?
+### 1.1 Was ist RecipeShare?
 
 RecipeShare ist eine moderne mobile Anwendung zur Verwaltung und zum Austausch von Kochrezepten zwischen Benutzern. Die App kombiniert persönliche Rezeptverwaltung mit Community-Features und bietet eine umfassende Lösung für alle, die ihre Lieblingsrezepte organisieren und mit anderen teilen möchten.
 
-### Hauptfunktionen
+### 1.2 Hauptfunktionen
 
-**Rezeptverwaltung**
+<table>
+<tr>
+<td width="50%">
+
+#### 📋 Rezeptverwaltung
+
 - Vollständige CRUD-Funktionalität (Erstellen, Lesen, Bearbeiten, Löschen)
 - Upload und Verwaltung von Rezeptbildern
 - Kategorisierung durch Tags (z.B. Vegan, Glutenfrei, Vegetarisch)
 - Automatische Nährwertberechnung mit USDA FoodData Central API
 
-**Social Features**
+</td>
+<td width="50%">
+
+#### 👥 Social Features
+
 - 5-Sterne-Bewertungssystem mit Kommentaren
 - Teilen von Rezepten via Email, WhatsApp, Telegram
 - Merkzettel-Funktion für Favoriten
 - Entdecken von neuen und beliebten Rezepten der Community
 
-**Planungs-Tools**
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+#### 📅 Planungs-Tools
+
 - Wochenplan zur Mahlzeitenplanung
 - Automatische Einkaufsliste aus Rezeptzutaten
 - Manuelle Bearbeitung und Status-Tracking der Einkaufsliste
 
-**Erweiterte Suchfunktionen**
+</td>
+<td width="50%">
+
+#### 🔍 Erweiterte Suchfunktionen
+
 - Suche nach Rezeptnamen, Zutaten und Tags
 - Filterung nach Ernährungspräferenzen
 
-**Benutzerverwaltung**
+</td>
+</tr>
+<tr>
+<td colspan="2">
+
+#### 👤 Benutzerverwaltung
+
 - Sichere Authentifizierung (Registrierung/Anmeldung)
 - Profilverwaltung mit Ernährungspräferenzen
 - Personalisierte Rezeptvorschläge
 
+</td>
+</tr>
+</table>
+
 ---
 
-## Technische Umsetzung
+## 2. Technische Umsetzung
 
-### Technologie-Stack
+### 2.1 Technologie-Stack
 
-**Frontend - Cross-Platform Mobile**
+<table>
+<tr>
+<td>
+
+#### 📱 Frontend - Cross-Platform Mobile
+
+![Flutter](https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white)
+![Material Design](https://img.shields.io/badge/Material_Design_3-757575?style=for-the-badge&logo=material-design&logoColor=white)
+
 - Flutter/Dart für native iOS und Android Apps
 - Material Design 3 für moderne UI
 - StatefulWidget für State Management
 - PopScope für Navigation mit Bestätigungsdialogen
 
-**Backend - Cloud Infrastructure**
+</td>
+</tr>
+<tr>
+<td>
+
+#### ☁️ Backend - Cloud Infrastructure
+
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
+
 - Supabase als Backend-as-a-Service
-- PostgreSQL-Datenbank
 - Authentication System
 - Storage Buckets für Bildverwaltung
 
-**Externe APIs & Services**
+</td>
+</tr>
+<tr>
+<td>
+
+#### 🔌 Externe APIs und Services
+
+![API](https://img.shields.io/badge/USDA_API-FF5722?style=for-the-badge&logo=api&logoColor=white)
+![Translation](https://img.shields.io/badge/Translation_API-FF9800?style=for-the-badge&logo=googletranslate&logoColor=white)
+
 - USDA FoodData Central API für Nährwertdaten
 - LibreTranslate API für automatische DE↔EN Übersetzung
 - MyMemory API als Fallback-Übersetzungsdienst
-- Share Plus Plugin für plattformübergreifendes Teilen
 
-### Projektstruktur
+</td>
+</tr>
+</table>
+
+### 2.2 Projektstruktur
 
 ```
 recipeshare/
@@ -109,18 +169,25 @@ recipeshare/
 └── pubspec.yaml                     # Projekt-Konfiguration
 ```
 
-### Installation und Setup
+### 2.3 Installation und Setup
 
-**Voraussetzungen**
-1. Visual Studio Code installieren
-2. Flutter SDK von https://flutter.dev/docs/get-started/install installieren
+> **💡 Hinweis:** Diese Anleitung beschreibt die Installation für Entwickler.
 
-**Flutter-Version überprüfen**
+#### Voraussetzungen
+
+```diff
++ Visual Studio Code installieren
++ Flutter SDK von https://flutter.dev/docs/get-started/install installieren
+```
+
+#### Flutter-Version überprüfen
+
 ```bash
 flutter --version
 ```
 
-**Projekt klonen und starten**
+#### Projekt klonen und starten
+
 ```bash
 # Repository klonen
 git clone git@git.thm.de:xd-praktikum/ws-25/kochrezepte-app-ngamga.git
@@ -132,12 +199,15 @@ flutter pub get
 flutter run
 ```
 
-**Browser auswählen**
-- 1 -> Windows (windows)
-- 2 -> Chrome (chrome)
-- 3 -> Edge (edge)
+#### Browser auswählen
 
-### Verwendete Packages
+```
+1 → Windows (windows)
+2 → Chrome (chrome)
+3 → Edge (edge)
+```
+
+### 2.4 Verwendete Packages
 
 ```yaml
 dependencies:
@@ -151,139 +221,171 @@ dependencies:
   share_plus: ^12.0.1
 ```
 
-### Projektstandards
+### 2.5 Projektstandards
 
-**Code-Konventionen**
+#### Code-Konventionen
+
 - camelCase für Variablen und Funktionen
 - PascalCase für Klassen
 - Feature-basierte Organisation
 - Dokumentation komplexer Logik
 
-**State Management**
+#### State Management
+
 - StatefulWidget für UI-State
 - Dirty-Flag System für ungespeicherte Änderungen
 - PopScope für Navigation mit Bestätigungsdialogen
 
-**Error Handling**
+#### Error Handling
+
 - Try-Catch-Blöcke für API-Calls
 - Retry-Logik bei Netzwerkfehlern
 - Benutzerfreundliche Fehlermeldungen
 
-**Performance-Optimierung**
+#### Performance-Optimierung
+
 - Parallele API-Verarbeitung mit `Future.wait()`
 - Caching für Übersetzungen
 - Lazy Loading für Listen
 
 ---
 
-## Systemarchitektur
+## 3. Systemarchitektur
 
-### Architektur-Übersicht
+### 3.1 Architektur-Übersicht
 
 Die RecipeShare-App folgt einer mehrschichtigen Architektur mit klarer Trennung von Präsentations-, Geschäftslogik- und Datenschicht.
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│         PRESENTATION LAYER (UI)                         │
-├─────────────────────────────────────────────────────────┤
-│  Home Page | Recipe Detail | Recipe Form               │
-│  Weekly Plan | Buy List | Profile                       │
-│  Login/Register Pages                                   │
-└─────────────────────────────────────────────────────────┘
+╔═══════════════════════════════════════════════════════════╗
+║         🎨 PRESENTATION LAYER (UI)                        ║
+╠═══════════════════════════════════════════════════════════╣
+║  Home Page │ Recipe Detail │ Recipe Form                 ║
+║  Weekly Plan │ Buy List │ Profile                         ║
+║  Login/Register Pages                                     ║
+╚═══════════════════════════════════════════════════════════╝
                           ↕
-┌─────────────────────────────────────────────────────────┐
-│         BUSINESS LOGIC LAYER                            │
-├─────────────────────────────────────────────────────────┤
-│  DatabaseService | AuthService                          │
-│  NutritionApiService | TranslationService               │
-│  StorageService                                         │
-└─────────────────────────────────────────────────────────┘
+╔═══════════════════════════════════════════════════════════╗
+║         ⚙️ BUSINESS LOGIC LAYER                           ║
+╠═══════════════════════════════════════════════════════════╣
+║  DatabaseService │ AuthService                            ║
+║  NutritionApiService │ TranslationService                 ║
+║  StorageService                                           ║
+╚═══════════════════════════════════════════════════════════╝
                           ↕
-┌─────────────────────────────────────────────────────────┐
-│         DATA LAYER                                      │
-├─────────────────────────────────────────────────────────┤
-│  Supabase Backend:                                      │
-│  • PostgreSQL-Datenbank                                 │
-│  • Authentication System                                │
-│  • Storage Buckets                                      │
-└─────────────────────────────────────────────────────────┘
+╔═══════════════════════════════════════════════════════════╗
+║         💾 DATA LAYER                                     ║
+╠═══════════════════════════════════════════════════════════╣
+║  Supabase Backend:                                        ║
+║  • PostgreSQL-Datenbank                                   ║
+║  • Authentication System                                  ║
+║  • Storage Buckets                                        ║
+╚═══════════════════════════════════════════════════════════╝
                           ↕
-┌─────────────────────────────────────────────────────────┐
-│         EXTERNAL SERVICES                               │
-├─────────────────────────────────────────────────────────┤
-│  USDA FoodData Central API | LibreTranslate API         │
-│  MyMemory API | Share Plus Plugin                       │
-└─────────────────────────────────────────────────────────┘
+╔═══════════════════════════════════════════════════════════╗
+║         🌐 EXTERNAL SERVICES                              ║
+╠═══════════════════════════════════════════════════════════╣
+║  USDA FoodData Central API │ LibreTranslate API           ║
+║  MyMemory API │ Share Plus Plugin                         ║
+╚═══════════════════════════════════════════════════════════╝
 ```
 
-### Datenbank-Schema
+### 3.2 Datenbank-Schema
 
-**profiles**
+#### profiles
+
 - Speichert Benutzerprofile und Ernährungspräferenzen
 - Felder: id, username, diet_preference, created_at, updated_at
 - Relation: 1:N zu recipes, ratings, bookmarks
 
-**recipes**
+#### recipes
+
 - Haupttabelle für Rezeptdaten
 - Felder: id, user_id, title, description, difficulty, prep_time, servings, tags, image_url, created_at
 - Relation: N:1 zu profiles, 1:N zu ingredients, instructions, ratings
 
-**ingredients**
+#### ingredients
+
 - Zutaten eines Rezepts mit Nährwertdaten
 - Felder: id, recipe_id, name, quantity, unit, calories, protein, carbs, fat
 - Relation: N:1 zu recipes
 
-**instructions**
+#### instructions
+
 - Schritt-für-Schritt Anweisungen
 - Felder: id, recipe_id, step_number, description
 - Relation: N:1 zu recipes
 
-**ratings**
+#### ratings
+
 - Bewertungen und Kommentare
 - Felder: id, recipe_id, user_id, rating, comment, created_at
 - Relation: N:1 zu recipes und profiles
 
-**bookmarks**
+#### bookmarks
+
 - Gespeicherte Favoriten-Rezepte
 - Felder: id, recipe_id, user_id, created_at
 - Relation: N:1 zu recipes und profiles
 
-**weekly_plans**
+#### weekly_plans
+
 - Wochenplanung für Mahlzeiten
 - Felder: id, user_id, recipe_id, day_of_week, created_at
 - Relation: N:1 zu recipes und profiles
 
-**shopping_list**
+#### shopping_list
+
 - Einkaufslisten-Einträge
 - Felder: id, user_id, name, quantity, unit, is_bought
 - Relation: N:1 zu profiles
 
-### Kommunikation zwischen Systemen
+### 3.3 Kommunikation zwischen Systemen
 
-**Mobile App ↔ Supabase Backend**
+#### Mobile App ↔ Supabase Backend
+
 - Protokoll: HTTPS REST API
 - Datenaustausch: JSON-Format
 - Real-time: Optional über Supabase Realtime
 
-**App ↔ USDA FoodData Central API**
+#### App ↔ USDA FoodData Central API
+
 - Protokoll: HTTPS REST API
 - Authentifizierung: API-Key
 - Error Handling: Retry-Logik mit exponential backoff
 
-**App ↔ Übersetzungs-APIs**
+#### App ↔ Übersetzungs-APIs
+
 - Primär: LibreTranslate (Open-Source)
 - Fallback: MyMemory API
 - Cache-System: Lokales Caching häufiger Übersetzungen
 - Performance: Parallele Verarbeitung mit `Future.wait()`
 
-**App ↔ Share Plus**
+#### App ↔ Share Plus
+
 - Integration: Native Platform-Integration
 - Unterstützte Kanäle: Email, WhatsApp, Telegram, etc.
 - Datenformat: Text oder strukturierte Daten
 
-### Wichtige Workflows
+### 3.4 Wichtige Workflows
 
-**Rezept erstellen mit Nährwertberechnung**
+#### 🔄 Rezept erstellen mit Nährwertberechnung
+
+```mermaid
+graph LR
+    A[1. Rezeptdaten eingeben] --> B[2. Übersetzung DE→EN]
+    B --> C[3. USDA API Abfrage]
+    C --> D[4. Nährwerte aggregieren]
+    D --> E[5. Daten speichern]
+    E --> F[6. Bild hochladen]
+    F --> G[7. UI aktualisieren]
+    style A fill:#FF5722
+    style G fill:#4CAF50
+```
+
+<details>
+<summary><b>Detaillierter Ablauf</b></summary>
+
 1. Benutzer gibt Rezeptdaten ein (UI)
 2. App sendet Zutatenliste an TranslationService
 3. Parallele Übersetzung DE→EN für jede Zutat
@@ -293,7 +395,27 @@ Die RecipeShare-App folgt einer mehrschichtigen Architektur mit klarer Trennung 
 7. StorageService lädt Bild hoch
 8. UI wird aktualisiert
 
-**Rezept bewerten**
+</details>
+
+---
+
+#### ⭐ Rezept bewerten
+
+```mermaid
+graph LR
+    A[1. Rezept öffnen] --> B[2. Bewerten klicken]
+    B --> C[3. Bewertungs-Dialog]
+    C --> D[4. Prüfung]
+    D --> E[5. Speichern]
+    E --> F[6. Durchschnitt berechnen]
+    F --> G[7. UI aktualisieren]
+    style A fill:#FF5722
+    style G fill:#4CAF50
+```
+
+<details>
+<summary><b>Detaillierter Ablauf</b></summary>
+
 1. Benutzer öffnet Rezept-Detailseite
 2. Klick auf "Bewerten" Button
 3. Bewertungs-Dialog erscheint (Sterne + optionaler Kommentar)
@@ -302,7 +424,26 @@ Die RecipeShare-App folgt einer mehrschichtigen Architektur mit klarer Trennung 
 6. Durchschnittsbewertung neu berechnen
 7. UI aktualisiert Sterne-Anzeige
 
-**Wochenplan erstellen**
+</details>
+
+---
+
+#### 📅 Wochenplan erstellen
+
+```mermaid
+graph LR
+    A[1. Wochenplan öffnen] --> B[2. Tag auswählen]
+    B --> C[3. Rezept wählen]
+    C --> D[4. Speichern]
+    D --> E[5. UI aktualisieren]
+    E --> F[6. Einkaufsliste?]
+    style A fill:#FF5722
+    style F fill:#4CAF50
+```
+
+<details>
+<summary><b>Detaillierter Ablauf</b></summary>
+
 1. Benutzer öffnet Wochenplan-Seite
 2. Klick auf "Rezept hinzufügen" für Tag
 3. Rezept auswählen aus eigenen/Community/Merkzettel
@@ -310,7 +451,27 @@ Die RecipeShare-App folgt einer mehrschichtigen Architektur mit klarer Trennung 
 5. UI aktualisiert Wochenplan
 6. Optional: Zutaten zu Einkaufsliste hinzufügen
 
-**Einkaufsliste generieren**
+</details>
+
+---
+
+#### 🛒 Einkaufsliste generieren
+
+```mermaid
+graph LR
+    A[1. Einkaufsliste öffnen] --> B[2. Import klicken]
+    B --> C[3. Rezepte laden]
+    C --> D[4. Zutaten aggregieren]
+    D --> E[5. Duplikate prüfen]
+    E --> F[6. Items einfügen]
+    F --> G[7. Liste anzeigen]
+    style A fill:#FF5722
+    style G fill:#4CAF50
+```
+
+<details>
+<summary><b>Detaillierter Ablauf</b></summary>
+
 1. Benutzer öffnet Einkaufsliste
 2. Klick auf "Aus Wochenplan importieren"
 3. DatabaseService lädt alle Rezepte aus weekly_plans
@@ -319,121 +480,224 @@ Die RecipeShare-App folgt einer mehrschichtigen Architektur mit klarer Trennung 
 6. Neue Items in shopping_list einfügen
 7. UI zeigt aktualisierte Liste mit Gruppierung
 
-### Technische Herausforderungen & Lösungen
+</details>
 
-**API-Übersetzung**
-- Problem: USDA API liefert nur englische Lebensmittel-Namen
-- Lösung: Automatische DE↔EN Übersetzung mit LibreTranslate + MyMemory Fallback und lokalem Cache
+### 3.5 Technische Herausforderungen und Lösungen
 
-**Nährwert-Performance**
-- Problem: 25+ sequenzielle API-Calls verursachten Ladezeiten von 30+ Sekunden
-- Lösung: Parallele Verarbeitung mit `Future.wait()` reduzierte Ladezeit auf 3-5 Sekunden
+<table>
+<tr>
+<td width="50%">
 
-**State Management**
-- Problem: Tracking ungespeicherter Änderungen bei Rezept-Bearbeitung
-- Lösung: Dirty-Flag System mit `PopScope` für Bestätigungs-Dialoge
+#### ⚠️ Problem: API-Übersetzung
 
-**UI/UX Optimierung**
-- Problem: Layout-Probleme auf kleinen Geräten
-- Lösung: Responsive Design mit `MediaQuery` und `LayoutBuilder`
+USDA API liefert nur englische Lebensmittel-Namen
+
+</td>
+<td width="50%">
+
+#### ✅ Lösung
+
+Automatische DE↔EN Übersetzung mit LibreTranslate + MyMemory Fallback und lokalem Cache
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+#### ⚠️ Problem: Nährwert-Performance
+
+25+ sequenzielle API-Calls verursachten Ladezeiten von 30+ Sekunden
+
+</td>
+<td width="50%">
+
+#### ✅ Lösung
+
+Parallele Verarbeitung mit `Future.wait()` reduzierte Ladezeit auf 3-5 Sekunden
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+#### ⚠️ Problem: State Management
+
+Tracking ungespeicherter Änderungen bei Rezept-Bearbeitung
+
+</td>
+<td width="50%">
+
+#### ✅ Lösung
+
+Dirty-Flag System mit `PopScope` für Bestätigungs-Dialoge
+
+</td>
+</tr>
+</table>
 
 ---
 
-## Anforderungen & Umsetzung
+## 4. Anforderungen und Umsetzung
 
-### Obligatorische Anforderungen
+### 4.1 Obligatorische Anforderungen
 
 | Status | Anforderung | Beschreibung |
-|--------|-------------|--------------|
-| ✓ | CRUD von Rezepten | Erstellen, Lesen, Bearbeiten und Löschen von Rezepten mit Bildern, Zutaten, Anweisungen und Metadaten |
-| ✓ | Verschlagwortung | Kategorisierung durch Tags wie Vegan, Glutenfrei, Vegetarisch |
-| ✓ | Nährwertansicht | Automatische Berechnung mit USDA API, Anzeige pro Rezept und pro Portion |
-| ✓ | Rezeptsuche | Suche nach Namen, Zutaten und Tags mit Filterung nach Ernährungspräferenzen |
-| ✓ | Bewertungssystem | 5-Sterne-Bewertung mit optionalen Kommentaren |
-| ✓ | Teilen-Funktion | Teilen via Email, WhatsApp, Telegram und andere Messenger |
-| ✓ | Benutzer-Authentifizierung | Sichere Registrierung und Anmeldung mit Email/Passwort |
+|:------:|-------------|--------------|
+| ✅ | **CRUD von Rezepten** | Erstellen, Lesen, Bearbeiten und Löschen von Rezepten mit Bildern, Zutaten, Anweisungen und Metadaten |
+| ✅ | **Verschlagwortung** | Kategorisierung durch Tags wie Vegan, Glutenfrei, Vegetarisch |
+| ✅ | **Nährwertansicht** | Automatische Berechnung mit USDA API, Anzeige pro Rezept und pro Portion |
+| ✅ | **Rezeptsuche** | Suche nach Namen, Zutaten und Tags mit Filterung nach Ernährungspräferenzen |
+| ✅ | **Bewertungssystem** | 5-Sterne-Bewertung mit optionalen Kommentaren |
+| ✅ | **Teilen-Funktion** | Teilen via Email |
+| ✅ | **Benutzer-Authentifizierung** | Sichere Registrierung und Anmeldung mit Email/Passwort |
 
-**Alle definierten Anforderungen wurden erfolgreich umgesetzt.**
+> **📊 Erfolgsquote:** 7/7 Anforderungen erfolgreich implementiert (100%)
 
-### Mögliche zukünftige Erweiterungen
+### 4.2 Mögliche zukünftige Erweiterungen
 
-**Erweiterte Social Features**
+#### Erweiterte Social Features
+
 - Follower-System für Benutzer
 - Rezept-Collections (Sammlungen)
 - Personalisierte User Feeds
 
-**KI-Integration**
+#### KI-Integration
+
 - Intelligente Rezept-Empfehlungen
 - Automatische Zutatenerkennung per Foto
 - Generierung von Rezepten aus vorhandenen Zutaten
 
-**Offline-Modus**
+#### Offline-Modus
+
 - Lokale Datenspeicherung mit SQLite
 - Automatische Synchronisation
 - Offline-Zugriff auf gespeicherte Rezepte
 
-**Erweiterte Analysen**
+#### Erweiterte Analysen
+
 - Nährwert-Tracking über Zeit
 - Ernährungsstatistiken und Visualisierungen
 - Zielerreichungs-Dashboard
 
-**Multi-Language Support**
+#### Multi-Language Support
+
 - Vollständige Internationalisierung
 - Automatische Übersetzung aller App-Inhalte
 - Mehrsprachige Rezepte
 
-**Smart Device Integration**
+#### Smart Device Integration
+
 - Anbindung an Smart Kitchen Appliances
 - Sprachsteuerung
-- Smart Home Integration
 
 ---
 
-## Fazit
+## 5. Fazit
 
-### Projekterfolge
+### 5.1 Projekterfolge
 
-RecipeShare demonstriert die Entwicklung einer vollständigen Cross-Platform Mobile App mit modernem Tech-Stack:
+> **🎯 RecipeShare demonstriert die Entwicklung einer vollständigen Cross-Platform Mobile App mit modernem Tech-Stack**
 
-- **Vollständige Anforderungserfüllung**: Alle obligatorischen und optionalen Anforderungen wurden implementiert
-- **Professionelles Design**: Moderne UI/UX mit Material Design 3 und durchdachten Workflows
-- **Robuste Backend-Integration**: Zuverlässige Anbindung an Supabase mit PostgreSQL
-- **Innovative API-Integration**: Intelligente Kombination von USDA, Übersetzungs-APIs und Caching
-- **Performance-Optimierung**: Parallele Verarbeitung reduzierte API-Ladezeiten um 85%
-- **Skalierbare Architektur**: Klare Trennung von Präsentations-, Business- und Data-Layer
+<table>
+<tr>
+<td width="50%">
 
-### Gewonnene Erkenntnisse
+**✅ Vollständige Anforderungserfüllung**
 
-**Flutter State Management & Navigation**
+Alle obligatorischen und optionalen Anforderungen wurden implementiert
+
+</td>
+<td width="50%">
+
+**🎨 Professionelles Design**
+
+Moderne UI/UX mit Material Design 3 und durchdachten Workflows
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**🔗 Robuste Backend-Integration**
+
+Zuverlässige Anbindung an Supabase mit PostgreSQL
+
+</td>
+<td width="50%">
+
+**🚀 Innovative API-Integration**
+
+Intelligente Kombination von USDA, Übersetzungs-APIs und Caching
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**⚡ Performance-Optimierung**
+
+Parallele Verarbeitung reduzierte API-Ladezeiten um 85%
+
+</td>
+<td width="50%">
+
+**🏗️ Skalierbare Architektur**
+
+Klare Trennung von Präsentations-, Business- und Data-Layer
+
+</td>
+</tr>
+</table>
+
+### 5.2 Gewonnene Erkenntnisse
+
+#### Flutter State Management und Navigation
+
 - Effektive Nutzung von StatefulWidget für reaktive UI
 - Implementation von Dirty-Flag Systemen für komplexe Workflows
 - Moderne Navigation mit PopScope für bessere UX
 
-**API-Integration & Error Handling**
+#### API-Integration und Error Handling
+
 - Robuste Fehlerbehandlung mit Retry-Logik
 - Fallback-Strategien für externe Dienste
 - Cache-Implementierung für Performance
 
-**Datenbank-Design & Supabase**
+#### Datenbank-Design und Supabase
+
 - Normalisiertes Schema für relationale Daten
 - Effiziente Queries mit PostgreSQL
 - Integration von Authentication und Storage
 
-**Performance-Optimierung**
+#### Performance-Optimierung
+
 - Parallele API-Verarbeitung mit `Future.wait()`
 - Lazy Loading für große Datensätze
 - Responsive Design für verschiedene Geräte
 
-### Team
+### 5.3 Team
+
+<div align="center">
 
 **Entwickelt von:**
-- Ange Dongmo
-- Hylarie Nzeye
-- Manuela Djomkam
-- Ken Ulrich Nya
+
+| Name | Rolle |
+|------|-------|
+| Ange Dongmo | Developer |
+| Hylarie Nzeye | Developer |
+| Manuela Djomkam | Developer |
+| Ken Ulrich Nya | Developer |
 
 **Zeitraum:** Wintersemester 2025/26
 
+</div>
+
 ---
 
-*RecipeShare - Kochrezepte verwalten, entdecken und teilen.*
+<div align="center">
+
+**RecipeShare** - Kochrezepte verwalten, entdecken und teilen.
+
+![RecipeShare](https://img.shields.io/badge/RecipeShare-FF5722?style=for-the-badge&logo=flutter&logoColor=white)
+
+</div>
