@@ -12,7 +12,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final AuthService _authService = AuthService();
   final TextEditingController _usernameController = TextEditingController();
-  
+
   String? _selectedPreference;
   bool _isLoading = true;
 
@@ -20,8 +20,10 @@ class _ProfilePageState extends State<ProfilePage> {
     'Keine',
     'Vegetarisch',
     'Vegan',
+    'Pescetarier',
     'Glutenfrei',
     'Laktosefrei',
+    'Fructosefrei',
   ];
 
   @override
@@ -41,13 +43,13 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _saveProfile() async {
     setState(() => _isLoading = true);
-    
+
     try {
       await _authService.updateProfile(
         username: _usernameController.text,
         dietPreference: _selectedPreference,
       );
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -59,10 +61,7 @@ class _ProfilePageState extends State<ProfilePage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Fehler: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -97,13 +96,13 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // Supprimer le compte
+  // Konto löschen
   Future<void> _deleteAccount() async {
     setState(() => _isLoading = true);
-    
+
     try {
       await _authService.deleteAccount();
-      
+
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -113,10 +112,7 @@ class _ProfilePageState extends State<ProfilePage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Fehler: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
         );
       }
       setState(() => _isLoading = false);
@@ -147,10 +143,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   // Username
                   const Text(
                     'Benutzername',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -170,10 +163,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   // Diet Preference
                   const Text(
                     'Ernährungspräferenz',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
@@ -215,7 +205,10 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                       child: const Text(
                         'Speichern',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -236,7 +229,10 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                       child: const Text(
                         'Konto löschen',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),

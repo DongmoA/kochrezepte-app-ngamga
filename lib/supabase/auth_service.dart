@@ -6,7 +6,23 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class AuthService {
   final supaClient = SupabaseClientManager.client;
 
-
+  // Prüfen ob der Benutzername bereits vergeben ist
+  // Prüfen ob der Benutzername bereits vergeben ist
+  Future<bool?> isUsernameTaken(String username) async {
+    try {
+      final result = await supaClient
+          .from('profiles')
+          .select('username')
+          .eq('username', username)
+          .maybeSingle();
+      
+      return result != null;
+    } catch (e) {
+      debugPrint('Fehler bei der Überprüfung des Benutzernamens: $e');
+      // Rückgabe null bei Fehler, um anzuzeigen, dass die Prüfung fehlgeschlagen ist
+      return null;
+    }
+  }
   Future<AuthResponse> signUp({
     required String email,
     required String password,

@@ -139,8 +139,8 @@ class Recipe {
       'image_url': imageUrl,
       'duration_minutes': durationMinutes,
       'servings': servings,
-      'difficulty': difficulty.name.capitalize(), // ex: "mittel" -> "Mittel"
-      'meal_type': mealType != null ? mealTypeToString(mealType!) : null, // ex: "fruehstueck" -> "Fruehstueck"
+      'difficulty': difficulty.name.capitalize(), 
+      'meal_type': mealType != null ? mealTypeToString(mealType!) : null, 
       'average_rating': averageRating,
       'total_ratings': totalRatings,
 
