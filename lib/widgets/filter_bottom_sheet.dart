@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import '../models/recipe.dart';
+
 class FilterBottomSheet extends StatefulWidget {
   final List<String> selectedTags;
   final String? selectedTime;
   final MealType? selectedMealType;
-  final Function(List<String> tags, String? selectedTime, MealType? selectedMealType) onApply;
+  final Function(
+    List<String> tags,
+    String? selectedTime,
+    MealType? selectedMealType,
+  )
+  onApply;
 
   const FilterBottomSheet({
     super.key,
@@ -23,17 +29,24 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
   late String? _selectedTime;
   late MealType? _selectedMealType;
 
-  final List<String> _availableTags = [
+  final List<String> _dietTags = [
+    'Fructosefrei',
+    'Glutenfrei',
+    'Laktosefrei',
+    'Pescetarier',
+    'Vegan',
+    'Vegetarisch',
+  ];
+
+  final List<String> _additionalTags = [
+    'Asiatisch',
+    'Bowl',
+    'Curry',
+    'Fisch',
+    'Gesund',
     'Italienisch',
     'Pasta',
     'Schnell',
-    'Vegan',
-    'Gesund',
-    'Bowl',
-    'Fisch',
-    'Vegetarisch',
-    'Curry',
-    'Asiatisch',
   ];
 
   @override
@@ -89,7 +102,11 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                 ),
                 TextButton(
                   onPressed: () {
-                    widget.onApply(_selectedTags, _selectedTime, _selectedMealType);
+                    widget.onApply(
+                      _selectedTags,
+                      _selectedTime,
+                      _selectedMealType,
+                    );
                     Navigator.pop(context);
                   },
                   child: const Text(
@@ -111,62 +128,23 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-  'Mahlzeit',
-  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-),
-const SizedBox(height: 16),
-Wrap(
-  spacing: 8,
-  runSpacing: 8,
-  children: MealType.values.map((type) {
-    final isSelected = _selectedMealType == type;
-    final label = _getMealTypeLabel(type);
-    
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (selected) {
-        setState(() {
-          _selectedMealType = selected ? type : null;
-        });
-      },
-      backgroundColor: Colors.white,
-      selectedColor: const Color(0xFFE65100).withOpacity(0.1),
-      labelStyle: TextStyle(
-        color: isSelected ? const Color(0xFFE65100) : Colors.grey[700],
-        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: isSelected ? const Color(0xFFE65100) : Colors.grey[300]!,
-          width: 1.5,
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    );
-  }).toList(),
-),
-const SizedBox(height: 32),
-
-                  const Text(
-                    'Zubereitungszeit',
+                    'Mahlzeit',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: ['0-20', '20-30', '30-45', '45-60', '60-90', '90+'].map((
-                      time,
-                    ) {
-                      final isSelected = _selectedTime == time;
+                    children: MealType.values.map((type) {
+                      final isSelected = _selectedMealType == type;
+                      final label = _getMealTypeLabel(type);
+
                       return ChoiceChip(
-                        label: Text('$time Min'),
+                        label: Text(label),
                         selected: isSelected,
                         onSelected: (selected) {
                           setState(() {
-                            _selectedTime = selected ? time : null;
+                            _selectedMealType = selected ? type : null;
                           });
                         },
                         backgroundColor: Colors.white,
@@ -196,6 +174,109 @@ const SizedBox(height: 32),
                     }).toList(),
                   ),
                   const SizedBox(height: 32),
+
+                  const Text(
+                    'Zubereitungszeit',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children:
+                        ['0-20', '20-30', '30-45', '45-60', '60-90', '90+'].map(
+                          (time) {
+                            final isSelected = _selectedTime == time;
+                            return ChoiceChip(
+                              label: Text('$time Min'),
+                              selected: isSelected,
+                              onSelected: (selected) {
+                                setState(() {
+                                  _selectedTime = selected ? time : null;
+                                });
+                              },
+                              backgroundColor: Colors.white,
+                              selectedColor: const Color(
+                                0xFFE65100,
+                              ).withOpacity(0.1),
+                              labelStyle: TextStyle(
+                                color: isSelected
+                                    ? const Color(0xFFE65100)
+                                    : Colors.grey[700],
+                                fontWeight: isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                side: BorderSide(
+                                  color: isSelected
+                                      ? const Color(0xFFE65100)
+                                      : Colors.grey[300]!,
+                                  width: 1.5,
+                                ),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                            );
+                          },
+                        ).toList(),
+                  ),
+
+                  const SizedBox(height: 32),
+                  const Text(
+                    'Ernährungsweise',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _dietTags.map((tag) {
+                      final isSelected = _selectedTags.contains(tag);
+                      return FilterChip(
+                        label: Text(tag),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) {
+                              _selectedTags.add(tag);
+                            } else {
+                              _selectedTags.remove(tag);
+                            }
+                          });
+                        },
+                        backgroundColor: Colors.white,
+                        selectedColor: const Color(0xFFE65100).withOpacity(0.1),
+                        checkmarkColor: const Color(0xFFE65100),
+                        labelStyle: TextStyle(
+                          color: isSelected
+                              ? const Color(0xFFE65100)
+                              : Colors.grey[700],
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                          fontSize: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(
+                            color: isSelected
+                                ? const Color(0xFFE65100)
+                                : Colors.grey[300]!,
+                            width: 1.5,
+                          ),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 32),
                   const Text(
                     'Tags',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -204,7 +285,7 @@ const SizedBox(height: 32),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: _availableTags.map((tag) {
+                    children: _additionalTags.map((tag) {
                       final isSelected = _selectedTags.contains(tag);
                       return FilterChip(
                         label: Text(tag),
@@ -254,20 +335,21 @@ const SizedBox(height: 32),
       ),
     );
   }
+
   String _getMealTypeLabel(MealType type) {
-  switch (type) {
-    case MealType.fruehstueck:
-      return 'Frühstück';
-    case MealType.vorspeise:
-      return 'Vorspeise';
-    case MealType.hauptgericht:
-      return 'Hauptgericht';
-    case MealType.beilage:
-      return 'Beilage';
-    case MealType.dessert:
-      return 'Dessert';
-    case MealType.snack:
-      return 'Snack';
+    switch (type) {
+      case MealType.fruehstueck:
+        return 'Frühstück';
+      case MealType.vorspeise:
+        return 'Vorspeise';
+      case MealType.hauptgericht:
+        return 'Hauptgericht';
+      case MealType.beilage:
+        return 'Beilage';
+      case MealType.dessert:
+        return 'Dessert';
+      case MealType.snack:
+        return 'Snack';
+    }
   }
-}
 }
