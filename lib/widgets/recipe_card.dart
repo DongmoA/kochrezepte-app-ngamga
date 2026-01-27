@@ -138,10 +138,12 @@ class RecipeCard extends StatelessWidget {
                         recipe.description!.isNotEmpty)
                       Flexible(
                         child: Padding(
-                          padding: const EdgeInsets.only(top: 8),
+                          padding: const EdgeInsets.only(top: 4),
                           child: Text(
                             recipe.description!,
-                            maxLines: 2,
+                            maxLines: MediaQuery.of(context).size.width < 360
+                                ? 1
+                                : 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 13,

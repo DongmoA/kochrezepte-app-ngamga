@@ -209,7 +209,15 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
         return recipe.mealType == _selectedMealType;
       }).toList();
     }
-
+    if (_selectedTags.isNotEmpty) {
+      filtered = filtered.where((recipe) {
+        return _selectedTags.every(
+          (selectedTag) => recipe.tags.any(
+            (recipeTag) => recipeTag.toLowerCase() == selectedTag.toLowerCase(),
+          ),
+        );
+      }).toList();
+    }
     return filtered;
   }
 
