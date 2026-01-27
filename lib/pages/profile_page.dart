@@ -96,7 +96,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // Supprimer le compte
+  // Konto löschen
   Future<void> _deleteAccount() async {
     setState(() => _isLoading = true);
 

@@ -33,29 +33,23 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
 
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  String? _userDietPreference;
 
-  /*static const Map<RecipeFilter, String> _filterLabels = {
-    RecipeFilter.all: 'Alle',
-    RecipeFilter.favorite: 'Gespeichert',
-    RecipeFilter.newest: 'Neu',
-    RecipeFilter.popular: 'Beliebt',
-    RecipeFilter.mine: 'Meine',
-  };
-
-  static const Map<RecipeFilter, IconData> _filterIcons = {
-    RecipeFilter.all: Icons.grid_view,
-    RecipeFilter.favorite: Icons.favorite,
-    RecipeFilter.newest: Icons.fiber_new,
-    RecipeFilter.popular: Icons.trending_up,
-    RecipeFilter.mine: Icons.person,
-  };*/
-
-  @override
+ @override
   void initState() {
     super.initState();
+    _loadUserPreference();
     _loadRecipes(filter: _currentFilter);
   }
 
+  Future<void> _loadUserPreference() async {
+    final preference = await _dbService.getUserDietPreference();
+    if (mounted) {
+      setState(() {
+        _userDietPreference = preference;
+      });
+    }
+  }
   @override
   void dispose() {
     _searchController.dispose();
@@ -141,53 +135,60 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
   List<Recipe> _getFilteredRecipes() {
     List<Recipe> filtered = List.from(_recipes);
 
-   if (_searchQuery.isNotEmpty) {
-  final query = _searchQuery.toLowerCase().trim();
-  
-  // 1. FILTRER : Chercher dans titre, description ET ingrédients
-  filtered = filtered.where((recipe) {
-    final titleMatch = recipe.title.toLowerCase().contains(query);
-    final descMatch = recipe.description?.toLowerCase().contains(query) ?? false;
-    
-    // Chercher dans les ingrédients
-    final ingredientsMatch = recipe.ingredients.any(
-      (ing) => ing.name.toLowerCase().contains(query)
-    );
-    
-    return titleMatch || descMatch || ingredientsMatch;
-  }).toList();
-  
-  // 2. TRIER par PERTINENCE (priorité : titre > ingrédients > description)
-  filtered.sort((a, b) {
-    final titleA = a.title.toLowerCase();
-    final titleB = b.title.toLowerCase();
-    
-    // Priorité 1 : Titre exact
-    if (titleA == query && titleB != query) return -1;
-    if (titleA != query && titleB == query) return 1;
-    
-    // Priorité 2 : Titre contient la recherche
-    final titleMatchA = titleA.contains(query);
-    final titleMatchB = titleB.contains(query);
-    if (titleMatchA && !titleMatchB) return -1;
-    if (!titleMatchA && titleMatchB) return 1;
-    
-    // Priorité 3 : Ingrédients contiennent la recherche
-    final ingMatchA = a.ingredients.any((ing) => ing.name.toLowerCase().contains(query));
-    final ingMatchB = b.ingredients.any((ing) => ing.name.toLowerCase().contains(query));
-    if (ingMatchA && !ingMatchB) return -1;
-    if (!ingMatchA && ingMatchB) return 1;
-    
-    // Priorité 4 : Description contient la recherche
-    final descMatchA = a.description?.toLowerCase().contains(query) ?? false;
-    final descMatchB = b.description?.toLowerCase().contains(query) ?? false;
-    if (descMatchA && !descMatchB) return -1;
-    if (!descMatchA && descMatchB) return 1;
-    
-    // Priorité 5 : Ordre alphabétique
-    return titleA.compareTo(titleB);
-  });
-}
+    if (_searchQuery.isNotEmpty) {
+      final query = _searchQuery.toLowerCase().trim();
+
+      // 1. FILTRER : Chercher dans titre, description ET ingrédients
+      filtered = filtered.where((recipe) {
+        final titleMatch = recipe.title.toLowerCase().contains(query);
+        final descMatch =
+            recipe.description?.toLowerCase().contains(query) ?? false;
+
+        // Chercher dans les ingrédients
+        final ingredientsMatch = recipe.ingredients.any(
+          (ing) => ing.name.toLowerCase().contains(query),
+        );
+
+        return titleMatch || descMatch || ingredientsMatch;
+      }).toList();
+
+      // 2. TRIER par PERTINENCE (priorité : titre > ingrédients > description)
+      filtered.sort((a, b) {
+        final titleA = a.title.toLowerCase();
+        final titleB = b.title.toLowerCase();
+
+        // Priorité 1 : Titre exact
+        if (titleA == query && titleB != query) return -1;
+        if (titleA != query && titleB == query) return 1;
+
+        // Priorité 2 : Titre contient la recherche
+        final titleMatchA = titleA.contains(query);
+        final titleMatchB = titleB.contains(query);
+        if (titleMatchA && !titleMatchB) return -1;
+        if (!titleMatchA && titleMatchB) return 1;
+
+        // Priorité 3 : Ingrédients contiennent la recherche
+        final ingMatchA = a.ingredients.any(
+          (ing) => ing.name.toLowerCase().contains(query),
+        );
+        final ingMatchB = b.ingredients.any(
+          (ing) => ing.name.toLowerCase().contains(query),
+        );
+        if (ingMatchA && !ingMatchB) return -1;
+        if (!ingMatchA && ingMatchB) return 1;
+
+        // Priorité 4 : Description contient la recherche
+        final descMatchA =
+            a.description?.toLowerCase().contains(query) ?? false;
+        final descMatchB =
+            b.description?.toLowerCase().contains(query) ?? false;
+        if (descMatchA && !descMatchB) return -1;
+        if (!descMatchA && descMatchB) return 1;
+
+        // Priorité 5 : Ordre alphabétique
+        return titleA.compareTo(titleB);
+      });
+    }
 
     // 3. FILTRER par TEMPS
     if (_selectedTime != null) {
@@ -218,7 +219,15 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
         return recipe.mealType == _selectedMealType;
       }).toList();
     }
-
+    if (_selectedTags.isNotEmpty) {
+      filtered = filtered.where((recipe) {
+        return _selectedTags.every(
+          (selectedTag) => recipe.tags.any(
+            (recipeTag) => recipeTag.toLowerCase() == selectedTag.toLowerCase(),
+          ),
+        );
+      }).toList();
+    }
     return filtered;
   }
 
@@ -300,13 +309,18 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
           ],
         ),
         actions: [
-          IconButton(
+       IconButton(
             icon: const Icon(Icons.person),
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ProfilePage()),
               );
+              // Nach Rückkehr: Präferenz und Rezepte neu laden
+              _loadUserPreference();
+              if (_currentFilter == RecipeFilter.newest) {
+                _loadRecipes(filter: _currentFilter);
+              }
             },
           ),
           IconButton(
@@ -422,6 +436,43 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
                 ),
 
                 const SizedBox(width: 12),
+
+                // Tag für Ernährungspräferenz bei "Neu" Filter
+                if (_currentFilter == RecipeFilter.newest &&
+                    _userDietPreference != null &&
+                    _userDietPreference != 'Keine')
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.eco,
+                            size: 16,
+                            color: Colors.green,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _userDietPreference!,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Colors.green,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
 
                 if (_selectedTags.isNotEmpty ||
                     _selectedTime != null ||
@@ -625,11 +676,13 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
 
   Widget _buildEmptyState() {
     final hasActiveFilters =
-        _searchQuery.isNotEmpty ||
         _selectedTags.isNotEmpty ||
         _selectedTime != null ||
         _selectedMealType != null;
     String message = 'No recipes found.';
+    if (_searchQuery.isNotEmpty) {
+      message = 'Keine Rezepte für "$_searchQuery" gefunden.';
+    }
     if (hasActiveFilters) {
       message = 'No recipes match your filters.';
     } else if (_currentFilter == RecipeFilter.mine) {

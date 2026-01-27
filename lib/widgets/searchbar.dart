@@ -21,6 +21,15 @@ class RecipeSearchBar extends StatelessWidget {
         hintText: 'Rezepte suchen...',
         hintStyle: const TextStyle(color: Colors.white70, fontSize: 15),
         prefixIcon: const Icon(Icons.search, color: Colors.white70, size: 22),
+        suffixIcon: controller != null && controller!.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear, color: Colors.white70, size: 20),
+                onPressed: () {
+                  controller?.clear();
+                  onChanged?.call('');
+                },
+              )
+            : null,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(25),
           borderSide: BorderSide.none,
