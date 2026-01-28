@@ -150,7 +150,7 @@ recipeshare/
 │   │   ├── feature_extends/
 │   │   │    ├── buy_list_page.dart
 │   │   │    └── weeklyplan_page.dart
-│   │   ├── Login:SignUp/
+│   │   ├── Login_SignUp/
 │   │   │    ├── login_page.dart
 │   │   │    └── register_page.dart    
 │   │   ├── Recipe/
@@ -163,7 +163,7 @@ recipeshare/
 │   │   ├── database_service.dart
 │   │   ├── nutrition_api_service.dart
 │   │   └── supabase_client.dart
-│   ├── widgets/               # Datenmodelle
+│   ├── widgets/               
 │   │   ├── common_widgets.dart
 │   │   ├── filter_bottom_sheet.dart
 │   │   ├── rating_widget.dart
