@@ -12,8 +12,6 @@ class DatabaseService {
   final AuthService _authService = AuthService();
 
   String get userId => _authService.getCurrentUserId();
-
-  // Helper: convertit n'importe quel id Supabase (int/uuid) en String
   String _id(dynamic value) => value?.toString() ?? '';
   // Ernährungspräferenz des Benutzers abrufen
   Future<String?> getUserDietPreference() async {
@@ -483,7 +481,7 @@ Future<bool> isRecipeFavorite(String recipeId) async {
     }
   }
 
-  // Liste des ratings (avec user_email via vue ratings_with_users si vous l’avez)
+  // List of ratings 
   Future<List<Map<String, dynamic>>> fetchAllRatingsForRecipe(String recipeId) async {
     try {
       final dynamic data = await _db
@@ -719,7 +717,6 @@ Future<List<Map<String, dynamic>>> fetchShoppingList() async {
 // add a new item to shopping list
 Future<void> addToShoppingList(String name, double qty, String unit) async {
   try {
-    // 1. Chercher si l'ingrédient existe déjà (et n'est pas encore acheté)
     final existingItems = await _db
         .from('shopping_list')
         .select()
@@ -728,7 +725,6 @@ Future<void> addToShoppingList(String name, double qty, String unit) async {
         .eq('is_bought', false);
 
     if (existingItems.isNotEmpty) {
-      // 2. Si l'article existe, on additionne proprement les nombres
       final existing = existingItems.first;
       double currentQty = (existing['quantity'] as num).toDouble();
       
@@ -737,7 +733,6 @@ Future<void> addToShoppingList(String name, double qty, String unit) async {
       }).eq('id', existing['id']);
       
     } else {
-      // 3. Sinon, on crée une nouvelle ligne
       await _db.from('shopping_list').insert({
         'user_id': userId,
         'name': name,

@@ -411,17 +411,7 @@ Check out this delicious recipe!
                   ],
                 ),
               ),
-              /* if (_isMine)
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete, color: Colors.red),
-                      SizedBox(width: 10),
-                      Text("Löschen", style: TextStyle(color: Colors.red)),
-                    ],
-                  ),
-                ),*/
+
             ],
           ),
         ],
@@ -730,22 +720,7 @@ Check out this delicious recipe!
       ),
     );
   }
-
-  /*Widget _buildNutritionMini(String value, String unit, String label) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-          Text(
-            "$value $unit",
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-*/
+  
   bool _hasNutritionInfo(Recipe recipe) {
     return recipe.calories != null ||
         recipe.protein != null ||

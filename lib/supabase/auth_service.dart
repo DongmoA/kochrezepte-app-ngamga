@@ -7,7 +7,6 @@ class AuthService {
   final supaClient = SupabaseClientManager.client;
 
   // Prüfen ob der Benutzername bereits vergeben ist
-  // Prüfen ob der Benutzername bereits vergeben ist
   Future<bool?> isUsernameTaken(String username) async {
     try {
       final result = await supaClient

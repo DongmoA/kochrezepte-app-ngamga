@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:kochrezepte_app/supabase/auth_service.dart';
 import 'package:kochrezepte_app/pages/Login_signUp/login_page.dart';
 
+/// Profile page allowing users to edit their profile information and delete their account
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
@@ -16,6 +17,7 @@ class _ProfilePageState extends State<ProfilePage> {
   String? _selectedPreference;
   bool _isLoading = true;
 
+// Available dietary preferences for users
   final List<String> _preferences = [
     'Keine',
     'Vegetarisch',
@@ -69,7 +71,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // Confirmation avant suppression
+
   void _confirmDeleteAccount() {
     showDialog(
       context: context,

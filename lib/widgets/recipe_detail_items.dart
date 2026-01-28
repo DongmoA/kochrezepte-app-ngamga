@@ -59,7 +59,6 @@ class NutritionInfoItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Style plus sobre pour s'intégrer dans une grille
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

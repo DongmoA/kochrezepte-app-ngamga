@@ -138,13 +138,12 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase().trim();
 
-      // 1. FILTRER : Chercher dans titre, description ET ingrédients
       filtered = filtered.where((recipe) {
         final titleMatch = recipe.title.toLowerCase().contains(query);
         final descMatch =
             recipe.description?.toLowerCase().contains(query) ?? false;
 
-        // Chercher dans les ingrédients
+     
         final ingredientsMatch = recipe.ingredients.any(
           (ing) => ing.name.toLowerCase().contains(query),
         );
@@ -152,22 +151,22 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
         return titleMatch || descMatch || ingredientsMatch;
       }).toList();
 
-      // 2. TRIER par PERTINENCE (priorité : titre > ingrédients > description)
+    
       filtered.sort((a, b) {
         final titleA = a.title.toLowerCase();
         final titleB = b.title.toLowerCase();
 
-        // Priorité 1 : Titre exact
+   
         if (titleA == query && titleB != query) return -1;
         if (titleA != query && titleB == query) return 1;
 
-        // Priorité 2 : Titre contient la recherche
+   
         final titleMatchA = titleA.contains(query);
         final titleMatchB = titleB.contains(query);
         if (titleMatchA && !titleMatchB) return -1;
         if (!titleMatchA && titleMatchB) return 1;
 
-        // Priorité 3 : Ingrédients contiennent la recherche
+      
         final ingMatchA = a.ingredients.any(
           (ing) => ing.name.toLowerCase().contains(query),
         );
@@ -177,7 +176,7 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
         if (ingMatchA && !ingMatchB) return -1;
         if (!ingMatchA && ingMatchB) return 1;
 
-        // Priorité 4 : Description contient la recherche
+     
         final descMatchA =
             a.description?.toLowerCase().contains(query) ?? false;
         final descMatchB =
@@ -185,12 +184,12 @@ class _RecipeHomePageState extends State<RecipeHomePage> {
         if (descMatchA && !descMatchB) return -1;
         if (!descMatchA && descMatchB) return 1;
 
-        // Priorité 5 : Ordre alphabétique
+       
         return titleA.compareTo(titleB);
       });
     }
 
-    // 3. FILTRER par TEMPS
+
     if (_selectedTime != null) {
       filtered = filtered.where((recipe) {
         final duration = recipe.durationMinutes;

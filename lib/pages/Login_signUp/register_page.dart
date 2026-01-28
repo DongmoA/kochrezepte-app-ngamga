@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-//import 'login_page.dart';
 import 'package:kochrezepte_app/supabase/auth_service.dart';
 
 class RegisterPage extends StatefulWidget {

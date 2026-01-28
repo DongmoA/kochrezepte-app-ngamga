@@ -74,7 +74,7 @@ class _BuyListPageState extends State<BuyListPage> {
     }
   }
 
-  // --- LOGIQUE D'IMPORTATION DEPUIS LES RECETTES ---
+
   Future<void> _importFromRecipe() async {
     setState(() => _isLoading = true);
     try {

@@ -144,29 +144,36 @@ RecipeShare ist eine moderne mobile Anwendung zur Verwaltung und zum Austausch v
 recipeshare/
 ├── lib/
 │   ├── main.dart                    # App-Einstiegspunkt
-│   ├── pages/                       # UI-Screens
-│   │   ├── home_page.dart
-│   │   ├── recipe_detail_page.dart
-│   │   ├── recipe_form_page.dart
-│   │   ├── weekly_plan_page.dart
-│   │   ├── buy_list_page.dart
-│   │   ├── profile_page.dart
-│   │   ├── login_page.dart
-│   │   └── register_page.dart
-│   ├── services/                    # Business Logic
-│   │   ├── database_service.dart
+│   ├── models/                 
+│   │   └── recipe.dart
+│   ├── pages/                # Business Logic
+│   │   ├── feature_extends/
+│   │   │    ├── buy_list_page.dart
+│   │   │    └── weeklyplan_page.dart
+│   │   ├── Login:SignUp/
+│   │   │    ├── login_page.dart
+│   │   │    └── register_page.dart    
+│   │   ├── Recipe/
+│   │   │    ├── recipe_detail_page.dart
+│   │   │    └── recipe_form_page.dart  
+│   │   ├── home.dart
+│   │   └── profile_page.dart
+│   ├── supabase/               # Datenmodelle
 │   │   ├── auth_service.dart
-│   │   └── nutrition_api_service.dart
-│   ├── models/                      # Datenmodelle
-│   │   ├── recipe.dart
-│   │   ├── ingredient.dart
-│   │   ├── instruction.dart
-│   │   ├── rating.dart
-│   │   └── profile.dart
-│   └── widgets/                     # Wiederverwendbare Komponenten
-├── assets/                          # Bilder, Fonts, etc.
-├── test/                            # Tests
-└── pubspec.yaml                     # Projekt-Konfiguration
+│   │   ├── database_service.dart
+│   │   ├── nutrition_api_service.dart
+│   │   └── supabase_client.dart
+│   ├── widgets/               # Datenmodelle
+│   │   ├── common_widgets.dart
+│   │   ├── filter_bottom_sheet.dart
+│   │   ├── rating_widget.dart
+│   │   ├── recipe_card.dart    
+│   │   ├── recipe_detail_items.dart
+│   │   └──searchbart.dart
+│   └─               
+├── test/                         # Tests
+├── pubspec.yaml               
+└── README.md    
 ```
 
 ### 2.3 Installation und Setup

@@ -1,5 +1,6 @@
 // lib/models/recipe.dart
 
+ // Filter options for recipe lists
 enum RecipeFilter {
   all,
   newest,
@@ -7,8 +8,9 @@ enum RecipeFilter {
   mine,
   favorite,
 }
-
+// Recipe difficulty levels 
 enum Difficulty { einfach, mittel, schwer }
+
 // enum for Mealtypes
 enum MealType {
   fruehstueck,
@@ -19,6 +21,7 @@ enum MealType {
   snack,
 }
 
+// Recipe model representing a complete recipe with ingredients, steps, and nutritional data
 class Recipe {
   final String? id;
 
@@ -74,7 +77,7 @@ class Recipe {
     this.ownername,
   });
 
-  /// Helper: gère nutrition renvoyé sous forme Map OU List<Map> (0..1)
+ // Extracts nutrition data from JSON response
   static Map<String, dynamic>? _extractNutrition(dynamic nutrition) {
     if (nutrition == null) return null;
     if (nutrition is Map<String, dynamic>) return nutrition;
@@ -92,12 +95,12 @@ class Recipe {
 
     return Recipe(
       id: json['id']?.toString(),
-      ownerId: json['owner_id']?.toString(), // NEW
+      ownerId: json['owner_id']?.toString(), 
 
       title: (json['title'] ?? '').toString(),
       description: json['description']?.toString(),
       imageUrl: json['image_url']?.toString(),
-      ownername: json['ownername']?.toString(), // NEW
+      ownername: json['ownername']?.toString(), 
 
       durationMinutes: (json['duration_minutes'] as num?)?.toInt() ?? 0,
       servings: (json['servings'] as num?)?.toInt() ?? 1,
