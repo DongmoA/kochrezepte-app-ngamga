@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/recipe.dart';
 import '../../supabase/database_service.dart';
 import 'package:intl/intl.dart';
-import '../Recipe/recipe_detail_page.dart';
+import '../recipe/recipe_detail_page.dart';
 
 class WeeklyplanPage extends StatefulWidget {
   const WeeklyplanPage({super.key});
